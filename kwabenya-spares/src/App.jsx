@@ -405,6 +405,7 @@ function mapApiOrder(order) {
       product: {
         product_id: item.product,
         part_name: item.product_name,
+        image_url: item.image_url || '',
         price: Number(item.unit_price),
       },
     })),
@@ -1675,7 +1676,9 @@ function CheckoutView() {
     }
     setProcessing(false);
     clearCart(); // empty the cart now that the order has been placed
-    navigate('confirmation');
+    const firstOrderId = orders[0]?.id;
+    if (firstOrderId) navigate('orderDetail', { orderId: firstOrderId });
+    else navigate('home');
   };
 
   return (
@@ -2087,6 +2090,7 @@ function SellerDashboardView() {
               <p className="text-stone-600 text-xs font-mono mt-1">{new Date(o.created_at).toLocaleString()}</p>
             </div>
             <span className="font-mono text-orange-600 font-bold text-sm">{formatGHS(o.total)}</span>
+            <button onClick={() => navigate('orderDetail', { orderId: o.id })} className="text-xs font-mono uppercase text-stone-400 hover:text-orange-500">Details</button>
             <select
               value={o.status}
               onChange={(e) => updateOrderStatus(o.id, e.target.value)}
@@ -2246,13 +2250,13 @@ function AdminDashboardView() {
           <p className="text-stone-500 text-sm p-4">No orders placed yet.</p>
         ) : (
           orders.slice(0, 10).map((o) => (
-            <div key={o.id} className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-stone-800 last:border-0 text-sm">
+            <button key={o.id} onClick={() => navigate('orderDetail', { orderId: o.id })} className="w-full text-left flex flex-wrap items-center gap-3 px-4 py-3 border-b border-stone-800 last:border-0 text-sm hover:bg-stone-800 transition-colors">
               <span className="text-stone-100 font-mono w-16">#{o.id}</span>
               <span className="text-stone-300 flex-1 truncate">{o.customer_name} · {o.shop_name}</span>
               <span className="text-stone-500 text-xs font-mono">{new Date(o.created_at).toLocaleDateString()}</span>
               <span className={`text-xs font-mono uppercase px-2 py-1 rounded-sm ${o.status === 'CANCELLED' ? 'bg-red-950 text-red-400' : o.status === 'COMPLETED' ? 'bg-green-950 text-green-400' : 'bg-stone-800 text-stone-300'}`}>{o.status}</span>
               <span className="text-orange-600 font-mono font-bold">{formatGHS(o.total)}</span>
-            </div>
+            </button>
           ))
         )}
       </div>
@@ -2377,6 +2381,11 @@ function AccountView() {
             {dashboardView && (
               <button onClick={() => navigate(dashboardView)} className="bg-orange-600 hover:bg-orange-500 text-stone-950 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">
                 Open dashboard
+              </button>
+            )}
+            {auth.user.role === 'RIDER' && (
+              <button onClick={() => navigate('myOrders')} className="bg-orange-600 hover:bg-orange-500 text-stone-950 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">
+                My orders
               </button>
             )}
             <button onClick={() => navigate('notifications')} className="border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">
@@ -2526,6 +2535,172 @@ function Footer() {
    MAIN CONTENT SWITCH
    ============================================================ */
 
+// OrderStatusBadge: small colored pill for an order's status.
+function OrderStatusBadge({ status }) {
+  const colors = {
+    PENDING: 'bg-orange-950 text-orange-600 border-orange-800',
+    CONFIRMED: 'bg-stone-800 text-stone-100 border-stone-700',
+    READY: 'bg-green-950 text-green-400 border-green-800',
+    COMPLETED: 'bg-green-950 text-green-400 border-green-800',
+    CANCELLED: 'bg-stone-800 text-stone-400 border-stone-700',
+  };
+  return (
+    <span className={`text-xs font-mono uppercase px-2 py-1 rounded-sm border ${colors[status] || 'bg-stone-800 text-stone-300 border-stone-700'}`}>
+      {status}
+    </span>
+  );
+}
+
+// MyOrdersView: customer's order history. Clicking an order opens OrderDetailView.
+function MyOrdersView() {
+  const { auth, navigate } = useApp();
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    let active = true;
+    api.getOrders()
+      .then((data) => { if (active) setOrders(unwrap(data)); })
+      .catch((e) => { if (active) setError(e.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-stone-400 text-sm">Loading orders…</div>;
+  if (error) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-red-400 text-sm">{error}</div>;
+  if (orders.length === 0) return <EmptyState onBack={() => navigate('home')} label="You have no orders yet" />;
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Account" title="My orders" />
+      <div className="space-y-3 mt-6">
+        {orders.map((o) => (
+          <button key={o.id} onClick={() => navigate('orderDetail', { orderId: o.id })} className="w-full text-left bg-stone-900 border border-stone-800 rounded-sm p-4 hover:border-orange-600 transition-colors">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono text-orange-600 font-bold">#{o.id}</span>
+              <OrderStatusBadge status={o.status} />
+            </div>
+            <p className="text-stone-400 text-xs mt-1">{new Date(o.created_at).toLocaleString()}</p>
+            <p className="text-stone-100 text-sm mt-2">{o.items?.length || 0} item(s) · {formatGHS(o.total)}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// OrderDetailView: shared full-order view. Role-based sections: customer sees
+// basics; shop owner and admin also see contact info and a status control.
+function OrderDetailView() {
+  const { selectedOrderId, auth, navigate, showToast, refreshNotifications } = useApp();
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const canManage = auth?.user && (auth.user.role === 'ADMIN' || (auth.user.role === 'SELLER' && order?.shop?.owner === auth.user.id));
+
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
+    api.getOrder(selectedOrderId)
+      .then((data) => { if (active) setOrder(data); })
+      .catch((e) => { if (active) setError(e.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [selectedOrderId]);
+
+  const updateStatus = async (newStatus) => {
+    if (!order) return;
+    setStatusBusy(true);
+    try {
+      const updated = await api.updateOrderStatus(order.id, newStatus);
+      setOrder(updated);
+      showToast(`Order #${order.id} marked ${newStatus}`);
+      refreshNotifications();
+    } catch (e) {
+      showToast('Could not update order status');
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const backView = auth?.user?.role === 'SELLER' ? 'seller' : auth?.user?.role === 'ADMIN' ? 'admin' : 'myOrders';
+
+  if (loading) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-stone-400 text-sm">Loading order…</div>;
+  if (error || !order) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-red-400 text-sm">{error || 'Order not found.'}</div>;
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      <button onClick={() => navigate(backView)} className="flex items-center gap-1.5 text-xs font-mono uppercase text-stone-400 hover:text-orange-500 mb-4">
+        <ArrowLeft size={14} /> Back
+      </button>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <h1 className="font-display text-3xl sm:text-4xl tracking-wide text-stone-100">Order #{order.id}</h1>
+        <OrderStatusBadge status={order.status} />
+      </div>
+
+      {/* Items */}
+      <div className="bg-stone-900 border border-stone-800 rounded-sm p-4 mb-4">
+        <p className="font-mono text-xs tracking-widest text-stone-500 uppercase mb-3">Items</p>
+        <div className="space-y-3">
+          {(order.items || []).map((item) => (
+            <div key={item.id} className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-sm h-12 w-12 shrink-0 flex items-center justify-center overflow-hidden">
+                <img src={item.image_url ? `/images/${item.image_url}` : (item.product ? `/images/${CATEGORY_IMAGES[item.product?.category_id] || ''}` : '')} alt={item.product_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-stone-100 text-sm font-semibold truncate">{item.product_name}</p>
+                <p className="text-stone-500 text-xs">{item.quantity} × {formatGHS(item.unit_price)}</p>
+              </div>
+              <span className="font-mono text-orange-600 font-bold text-sm">{formatGHS(item.unit_price * item.quantity)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="h-px bg-stone-800 my-3" />
+        <div className="flex items-center justify-between text-sm font-bold">
+          <span className="text-stone-100">Total</span>
+          <span className="font-mono text-orange-600">{formatGHS(order.total)}</span>
+        </div>
+      </div>
+
+      {/* Delivery & payment */}
+      <div className="bg-stone-900 border border-stone-800 rounded-sm p-4 mb-4">
+        <p className="font-mono text-xs tracking-widest text-stone-500 uppercase mb-3">Delivery & payment</p>
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Contact</span><p className="text-stone-100">{order.contact_name || order.customer_name}</p></div>
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Phone</span><p className="text-stone-100">{order.contact_phone}</p></div>
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Landmark</span><p className="text-stone-100">{order.notes || '—'}</p></div>
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Payment</span><p className="text-stone-100">{order.payment_method}</p></div>
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Date</span><p className="text-stone-100">{new Date(order.created_at).toLocaleString()}</p></div>
+          <div><span className="text-stone-500 text-xs font-mono uppercase">Shop</span><p className="text-stone-100">{order.shop_name}</p></div>
+        </div>
+      </div>
+
+      {/* Role-based: contact info + status control for shop owner / admin */}
+      {canManage && (
+        <div className="bg-stone-900 border border-stone-800 rounded-sm p-4">
+          <p className="font-mono text-xs tracking-widest text-stone-500 uppercase mb-3">Fulfilment (shop owner / admin)</p>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-mono text-stone-500">Status</label>
+            <select
+              value={order.status}
+              disabled={statusBusy}
+              onChange={(e) => updateStatus(e.target.value)}
+              className="bg-stone-800 border border-stone-700 text-stone-100 text-xs font-mono rounded-sm px-3 py-2 outline-none"
+            >
+              {['PENDING','CONFIRMED','READY','COMPLETED','CANCELLED'].map((s) => (
+                <option key={s} value={s} className="bg-stone-950">{s}</option>
+              ))}
+            </select>
+            {statusBusy && <span className="text-stone-500 text-xs">Updating…</span>}
+          </div>
+          <p className="text-stone-500 text-xs mt-2">Customer: {order.customer_name} · {order.contact_phone}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // MainContent: the app's "router" — reads the current `view` string out of
 // context and renders whichever top-level view component matches it. Falls
 // back to HomeView for any unrecognized value (shouldn't normally happen,
@@ -2544,6 +2719,8 @@ function MainContent() {
     case 'mechanic': return <AccessGuard allowedRoles={['MECHANIC']}><MechanicDashboardView /></AccessGuard>;
     case 'admin': return <AccessGuard allowedRoles={['ADMIN']}><AdminDashboardView /></AccessGuard>;
     case 'account': return <AccountView />;
+    case 'myOrders': return <AccessGuard><MyOrdersView /></AccessGuard>;
+    case 'orderDetail': return <AccessGuard><OrderDetailView /></AccessGuard>;
     case 'notifications': return <AccessGuard><NotificationsView /></AccessGuard>;
     default: return <HomeView />;
   }
@@ -2594,8 +2771,31 @@ export default function App() {
 
   // --- NAVIGATION STATE ------------------------------------------------
   const [view, setView] = useState('home'); // which top-level screen MainContent should render
+  // Restore an order-detail view from the URL on first load (refresh support).
+  useEffect(() => {
+    const m = window.location.pathname.match(/^\/orders\/(\d+)$/);
+    if (m) { setView('orderDetail'); setSelectedOrderId(Number(m[1])); }
+  }, []);
+  // Keep the URL in sync when an order detail is opened.
+  useEffect(() => {
+    if (view === 'orderDetail' && selectedOrderId) {
+      const url = `/orders/${selectedOrderId}`;
+      if (window.location.pathname !== url) window.history.pushState({}, '', url);
+    }
+  }, [view, selectedOrderId]);
+  // Handle browser back/forward.
+  useEffect(() => {
+    const onPop = () => {
+      const m = window.location.pathname.match(/^\/orders\/(\d+)$/);
+      if (m) { setView('orderDetail'); setSelectedOrderId(Number(m[1])); }
+      else { setView('home'); }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [selectedShopId, setSelectedShopId] = useState(null); // which shop ShopDetailView should show
   const [selectedProductId, setSelectedProductId] = useState(null); // which product ProductDetailView should show
+  const [selectedOrderId, setSelectedOrderId] = useState(null); // which order OrderDetailView should show
 
   // --- SESSION / ROLE STATE ----------------------------------------------
   // The signed-in account's role is the single source of truth for access
@@ -2795,6 +2995,7 @@ export default function App() {
     setView(v);
     if (params.shopId !== undefined) setSelectedShopId(params.shopId);
     if (params.productId !== undefined) setSelectedProductId(params.productId);
+    if (params.orderId !== undefined) setSelectedOrderId(params.orderId);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

@@ -338,7 +338,10 @@ class OrderViewSet(viewsets.ModelViewSet):
             notes=data.get("notes", ""),
         )
         for product, qty in items:
-            OrderItem.objects.create(order=order, product=product, quantity=qty, unit_price=product.price)
+            OrderItem.objects.create(
+                order=order, product=product, quantity=qty, unit_price=product.price,
+                product_name=product.part_name, image_url=product.image_url or "",
+            )
             product.stock_quantity -= qty
             product.save(update_fields=["stock_quantity"])
 

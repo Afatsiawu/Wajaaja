@@ -116,11 +116,9 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source="product.part_name", read_only=True)
-
     class Meta:
         model = OrderItem
-        fields = ["id", "product", "product_name", "quantity", "unit_price"]
+        fields = ["id", "product", "product_name", "image_url", "quantity", "unit_price"]
 
 
 class OrderSerializer(serializers.ModelSerializer):

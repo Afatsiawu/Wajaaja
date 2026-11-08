@@ -36,6 +36,9 @@ async function request(path, options = {}) {
     const res = await fetch(`${API_URL}${path}`, { ...options, headers });
     if (!res.ok) {
       const body = await res.text();
+      if (res.status === 401 && typeof window !== 'undefined' && typeof window.__logout === 'function') {
+        window.__logout();
+      }
       throw new Error(`API error ${res.status}: ${body}`);
     }
     return res.status === 204 ? null : res.json();
@@ -84,6 +87,7 @@ export const api = {
 
   // --- orders ------------------------------------------------------------
   getOrders: (params = {}) => request(`/orders/?${new URLSearchParams(params)}`),
+  getOrder: (id) => request(`/orders/${id}/`),
   createOrder: (data) => request('/orders/', { method: 'POST', body: JSON.stringify(data) }),
   updateOrderStatus: (id, status) => request(`/orders/${id}/update_status/`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
