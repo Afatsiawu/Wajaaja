@@ -63,7 +63,7 @@ import {
   CircleDot, MoveVertical, Frame, Lightbulb, Droplet, Star, Users,
   LayoutDashboard, Pencil, Trash2, Save, Bike, ShieldCheck, Loader2,
   ClipboardCheck, TrendingUp, Filter as FilterIcon, PlusCircle, MapPinned,
-  Sun, Moon
+  Sun, Moon, LogOut
 } from 'lucide-react';
 
 /* ============================================================
@@ -539,13 +539,28 @@ const ROLE_VIEW = { SELLER: 'seller', MECHANIC: 'mechanic', ADMIN: 'admin' };
 
 function Header() {
   // Pull everything this component needs straight out of global context.
-  const { navigate, view, cartCount, searchQuery, setSearchQuery, auth, notifications, theme, toggleTheme } = useApp();
+  const { navigate, view, cartCount, searchQuery, setSearchQuery, auth, notifications, theme, toggleTheme, logout, showToast, clearCart } = useApp();
   const unreadCount = (notifications || []).filter((n) => !n.is_read).length;
   // The role is always derived from the authenticated account — guests are
   // riders only, and there is no UI control that can change it.
   const signedInRole = auth?.user?.role || 'RIDER';
   const dashboardView = auth?.user ? ROLE_VIEW[signedInRole] : null;
   const [mobileOpen, setMobileOpen] = useState(false); // is the mobile hamburger menu open?
+  // Lock body scroll while the mobile menu is open.
+  useEffect(() => {
+    if (mobileOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+  // Close on Escape.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMobileOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mobileOpen]);
+  // Close on route change.
+  useEffect(() => { setMobileOpen(false); }, [view]);
   // localQuery is a *draft* copy of the search box text — kept separate
   // from the real (global) searchQuery so typing doesn't re-filter the
   // whole catalog on every keystroke; it only commits on Enter/"Go".
@@ -633,6 +648,13 @@ function Header() {
               {auth?.user ? (auth.user.first_name || auth.user.username) : 'Sign in'}
             </button>
 
+            {/* Logout button — only when signed in */}
+            {auth?.user && (
+              <button onClick={async () => { await logout(); clearCart(); showToast('Signed out'); navigate('home'); setMobileOpen(false); }} className="hidden sm:flex items-center gap-2 px-3 py-2.5 bg-stone-800 hover:bg-stone-700 rounded-sm border border-stone-800 transition-colors text-stone-100 text-xs font-semibold" title="Sign out">
+                <LogOut size={16} /> Sign out
+              </button>
+            )}
+
             {/* Cart button — shows a small badge with the item count when the cart isn't empty */}
             <button onClick={() => navigate('cart')} className="relative p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-stone-800 hover:bg-stone-700 rounded-sm border border-stone-800 transition-colors">
               <ShoppingCart size={18} className="text-stone-100" />
@@ -653,32 +675,43 @@ function Header() {
           </div>
         </div>
 
-        {/* Mobile dropdown menu: search box + nav links + role switcher, all stacked.
-            Only rendered at all while mobileOpen is true. */}
+        {/* Mobile full-screen menu overlay — covers the whole page, solid
+            background, scrollable, with a close button in the header spot. */}
         {mobileOpen && (
-          <div className="md:hidden pb-4 flex flex-col gap-3">
-            {/* Mobile copy of the search box — same logic as the desktop one above */}
-            <div className="flex items-center bg-stone-800 border border-stone-800 rounded-sm">
-              <Search size={16} className="ml-3 text-stone-500" />
-              <input
-                value={localQuery}
-                onChange={(e) => setLocalQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && runSearch()}
-                placeholder="Search parts, models, shops…"
-                className="bg-transparent px-2 py-2.5 text-sm text-stone-100 placeholder-stone-600 outline-none w-full"
-              />
-              <button onClick={runSearch} className="px-3 text-xs font-mono uppercase text-orange-600">Go</button>
+          <div className="md:hidden fixed inset-0 z-[60] bg-stone-950 flex flex-col overflow-y-auto" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-stone-800">
+              <span className="font-display text-xl tracking-wider text-stone-100">KWABENYA SPARES</span>
+              <button onClick={() => setMobileOpen(false)} className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-stone-800 hover:bg-stone-700 rounded-sm border border-stone-800" aria-label="Close menu">
+                <X size={18} className="text-stone-100" />
+              </button>
             </div>
-            {/* Mobile nav links — closes the menu after navigating, same conditional Dashboard link as desktop */}
-            <div className="flex flex-col gap-1">
-              <button onClick={() => { navigate('home'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Catalog</button>
-              <button onClick={() => { navigate('shops'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Shops</button>
-              <button onClick={() => { navigate('notifications'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Notifications {unreadCount > 0 ? `(${unreadCount})` : ''}</button>
-              <button onClick={() => { navigate('account'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{auth?.user ? `Account (${auth.user.username})` : 'Sign in / Register'}</button>
-              {dashboardView && <button onClick={() => { navigate(dashboardView); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Dashboard</button>}
+            <div className="flex flex-col gap-3 px-4 py-4">
+              {/* Mobile copy of the search box */}
+              <div className="flex items-center bg-stone-800 border border-stone-800 rounded-sm">
+                <Search size={16} className="ml-3 text-stone-500" />
+                <input
+                  value={localQuery}
+                  onChange={(e) => setLocalQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && runSearch()}
+                  placeholder="Search parts, models, shops…"
+                  className="bg-transparent px-2 py-2.5 text-sm text-stone-100 placeholder-stone-600 outline-none w-full"
+                />
+                <button onClick={runSearch} className="px-3 text-xs font-mono uppercase text-orange-600">Go</button>
+              </div>
+              {/* Mobile nav links */}
+              <div className="flex flex-col gap-1">
+                <button onClick={() => { navigate('home'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Catalog</button>
+                <button onClick={() => { navigate('shops'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Shops</button>
+                <button onClick={() => { navigate('notifications'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Notifications {unreadCount > 0 ? `(${unreadCount})` : ''}</button>
+                <button onClick={() => { navigate('account'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{auth?.user ? `Account (${auth.user.username})` : 'Sign in / Register'}</button>
+                {dashboardView && <button onClick={() => { navigate(dashboardView); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Dashboard</button>}
+                {auth?.user && (
+                  <button onClick={async () => { await logout(); clearCart(); showToast('Signed out'); navigate('home'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Sign out</button>
+                )}
+              </div>
+              <button onClick={() => { toggleTheme(); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</button>
+              <p className="text-xs font-mono text-stone-500 uppercase tracking-widest">Viewing as: {auth?.user ? ROLE_LABELS[signedInRole] : 'Rider (guest)'}</p>
             </div>
-            <button onClick={() => { toggleTheme(); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</button>
-            <p className="text-xs font-mono text-stone-500 uppercase tracking-widest">Viewing as: {auth?.user ? ROLE_LABELS[signedInRole] : 'Rider (guest)'}</p>
           </div>
         )}
       </div>
@@ -2664,6 +2697,8 @@ export default function App() {
     setNotifications([]);
     setStats(null);
     setSessionReady(true);
+    clearCart();
+    if (typeof window !== 'undefined') window.__logout = logout;
   };
 
   // updateProfile: saves first/last name, email or phone for the signed-in user.
