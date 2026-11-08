@@ -25,17 +25,32 @@ export function setToken(token) {
 }
 
 // request: the one low-level function every call below goes through.
+// Retries once on network errors or 5xx responses so a sleeping Render
+// backend (cold start) doesn't surface as a hard failure on first load.
 async function request(path, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  const token = getToken();
-  if (token) headers.Authorization = `Token ${token}`;
+  const doFetch = async () => {
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    const token = getToken();
+    if (token) headers.Authorization = `Token ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API error ${res.status}: ${body}`);
+    const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`API error ${res.status}: ${body}`);
+    }
+    return res.status === 204 ? null : res.json();
+  };
+
+  try {
+    return await doFetch();
+  } catch (e) {
+    const msg = e?.message || '';
+    if (/Failed to fetch|NetworkError|API error 5\d\d/.test(msg)) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return await doFetch();
+    }
+    throw e;
   }
-  return res.status === 204 ? null : res.json();
 }
 
 // unwrap: DRF paginates list endpoints, so most list calls return
