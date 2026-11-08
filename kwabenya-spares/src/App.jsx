@@ -2594,20 +2594,30 @@ function OrderDetailView() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [timedOut, setTimedOut] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [statusBusy, setStatusBusy] = useState(false);
   const canManage = auth?.user && (auth.user.role === 'ADMIN' || (auth.user.role === 'SELLER' && order?.shop?.owner === auth.user.id));
 
   useEffect(() => {
-    if (!selectedOrderId) return;
+    if (!selectedOrderId) {
+      setLoading(false);
+      setError('No order selected.');
+      return;
+    }
     let active = true;
+    setTimedOut(false);
     setLoading(true);
     setError(null);
+    const timer = setTimeout(() => {
+      if (active) { setTimedOut(true); setLoading(false); }
+    }, 15000);
     api.getOrder(selectedOrderId)
       .then((data) => { if (active) setOrder(data); })
       .catch((e) => { if (active) setError(e.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [selectedOrderId]);
+      .finally(() => { if (active) { clearTimeout(timer); setLoading(false); } });
+    return () => { active = false; clearTimeout(timer); };
+  }, [selectedOrderId, retryKey]);
 
   const updateStatus = async (newStatus) => {
     if (!order) return;
@@ -2626,8 +2636,27 @@ function OrderDetailView() {
 
   const backView = auth?.user?.role === 'SELLER' ? 'seller' : auth?.user?.role === 'ADMIN' ? 'admin' : 'myOrders';
 
-  if (loading) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-stone-400 text-sm">Loading order…</div>;
-  if (error || !order) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-red-400 text-sm">{error || 'Order not found.'}</div>;
+  if (loading) return (
+    <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+      <p className="text-stone-400 text-sm">Loading order…</p>
+      {timedOut && (
+        <div className="mt-4">
+          <p className="text-stone-500 text-xs mb-3">Taking longer than expected.</p>
+          <button onClick={() => { setRetryKey((k) => k + 1); }} className="border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
+  );
+  if (error || !order) return (
+    <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+      <p className="text-red-400 text-sm mb-3">{error || 'Order not found.'}</p>
+      <button onClick={() => { setRetryKey((k) => k + 1); }} className="border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">
+        Retry
+      </button>
+    </div>
+  );
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
