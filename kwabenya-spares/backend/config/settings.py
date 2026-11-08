@@ -212,11 +212,12 @@ _cors = os.getenv(
     "http://localhost:5173,http://127.0.0.1:5173",
 ).split(",")
 # FRONTEND_URL: convenience single origin (e.g. https://your-app.vercel.app)
-# that is always added to the allowed list.
-_frontend_url = os.getenv("FRONTEND_URL", "").strip()
+# that is always added to the allowed list. Strip any trailing slash/path.
+_frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
 if _frontend_url and _frontend_url not in _cors:
     _cors.append(_frontend_url)
-CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors if o.strip()]
+# Strip trailing slashes from all origins (corsheaders rejects paths).
+CORS_ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _cors if o.strip()]
 # Allow any localhost port during development.
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
