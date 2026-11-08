@@ -2090,7 +2090,7 @@ function SellerDashboardView() {
               <p className="text-stone-600 text-xs font-mono mt-1">{new Date(o.created_at).toLocaleString()}</p>
             </div>
             <span className="font-mono text-orange-600 font-bold text-sm">{formatGHS(o.total)}</span>
-            <button onClick={() => navigate('orderDetail', { orderId: o.id })} className="text-xs font-mono uppercase text-stone-400 hover:text-orange-500">Details</button>
+            <button onClick={() => { console.log('SELLER Details clicked, orderId =', o.id, 'order =', o); navigate('orderDetail', { orderId: o.id }); }} className="text-xs font-mono uppercase text-stone-400 hover:text-orange-500">Details</button>
             <select
               value={o.status}
               onChange={(e) => updateOrderStatus(o.id, e.target.value)}
@@ -3150,7 +3150,7 @@ export default function App() {
   // function any component in the app needs lives here — this is the
   // entire "public API" that useApp() exposes.
   const ctx = {
-    shops, products, cart, view, selectedShopId, selectedProductId,
+    shops, products, cart, view, selectedShopId, selectedProductId, selectedOrderId, setSelectedOrderId,
     currentShopId, setCurrentShopId, searchQuery, setSearchQuery, filters, setFilters,
     toast, showToast, lastOrder, setLastOrder,
     navigate, addToCart, updateCartQty, removeFromCart, clearCart, cartCount, cartTotal,
