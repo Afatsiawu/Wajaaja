@@ -2771,6 +2771,9 @@ export default function App() {
 
   // --- NAVIGATION STATE ------------------------------------------------
   const [view, setView] = useState('home'); // which top-level screen MainContent should render
+  const [selectedShopId, setSelectedShopId] = useState(null); // which shop ShopDetailView should show
+  const [selectedProductId, setSelectedProductId] = useState(null); // which product ProductDetailView should show
+  const [selectedOrderId, setSelectedOrderId] = useState(null); // which order OrderDetailView should show
   // Restore an order-detail view from the URL on first load (refresh support).
   useEffect(() => {
     const m = window.location.pathname.match(/^\/orders\/(\d+)$/);
@@ -2793,9 +2796,6 @@ export default function App() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const [selectedShopId, setSelectedShopId] = useState(null); // which shop ShopDetailView should show
-  const [selectedProductId, setSelectedProductId] = useState(null); // which product ProductDetailView should show
-  const [selectedOrderId, setSelectedOrderId] = useState(null); // which order OrderDetailView should show
 
   // --- SESSION / ROLE STATE ----------------------------------------------
   // The signed-in account's role is the single source of truth for access
