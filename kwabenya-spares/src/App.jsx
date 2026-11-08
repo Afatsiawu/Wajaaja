@@ -2678,7 +2678,7 @@ function OrderDetailView() {
                 <img src={item.image_url ? `/images/${item.image_url}` : (item.product ? `/images/${CATEGORY_IMAGES[item.product?.category_id] || ''}` : '')} alt={item.product_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-stone-100 text-sm font-semibold truncate">{item.product_name}</p>
+                <p className="text-stone-100 text-sm font-semibold truncate">{item.product_name || 'Product unavailable'}</p>
                 <p className="text-stone-500 text-xs">{item.quantity} × {formatGHS(item.unit_price)}</p>
               </div>
               <span className="font-mono text-orange-600 font-bold text-sm">{formatGHS(item.unit_price * item.quantity)}</span>
