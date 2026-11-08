@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container" style="max-width:760px;">
+    <div class="eyebrow">About the platform</div>
+    <h1>Bridging riders, vendors, and fitters in Kwabenya</h1>
+    <p class="lede" style="font-size:15px;">Motify solves a specific, local problem: riders in Kwabenya waste time and fuel searching shop to shop for spare parts, without knowing which vendors have stock, which shops are open, or how to reach a trusted fitter.</p>
+
+    <h2 style="margin-top:36px;">What we solve</h2>
+    <p class="lede" style="font-size:14px;">Component misidentification, unverified vendor locations, uncertain stock, and no quick way to reach installation help. Every listing on the platform carries the shop's exact landmark, live open/closed status, and the assigned mechanic's direct contact - bound to the product, not buried in a profile page.</p>
+
+    <h2 style="margin-top:28px;">Phase 1: no online payment</h2>
+    <p class="lede" style="font-size:14px;">Every reservation is a hold, not a transaction. Riders pay the vendor directly in cash or mobile money when they arrive to collect the part. This keeps the platform simple, fast to adopt, and free of payment-gateway friction for a peri-urban market that runs on cash and MoMo.</p>
+
+    <h2 style="margin-top:28px;">What's next</h2>
+    <p class="lede" style="font-size:14px;">Phase 2 introduces MTN MoMo and Telecel Cash payment integration, delivery-rider dispatch for parts fulfillment, and in-app mechanic booking.</p>
+
+    <div style="margin-top:36px;display:flex;gap:10px;">
+      <a href="parts.html" class="btn btn-primary">Browse parts</a>
+      <a href="register.html?role=vendor" class="btn btn-outline">List your shop</a>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>(async()=>{try{await DB.ready();renderNavbar('about');}catch(err){showLoadError(err);}})();</script>
+</body>
+</html>

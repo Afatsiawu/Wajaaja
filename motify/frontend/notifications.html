@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notifications - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container" style="max-width:640px;">
+    <h1>Notifications</h1>
+    <p class="lede">Updates on your reservations and account activity.</p>
+    <div class="listing" id="notifList"></div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(null);
+if(!user){ window.location.href = 'login.html'; }
+else {
+  renderNavbar('notifications');
+  let notifs = [];
+
+  if(user.role === 'rider'){
+    notifs = DB.getReservations({ riderId:user.id }).map(r=>{
+      const p = DB.getProductById(r.productId), s = DB.getShopById(r.shopId);
+      return { image:PART_IMAGES[p.category], text:`${s.name} updated your reservation for "${p.title}" to ${STATUS_LABEL[r.status]}.`, when:r.createdAt };
+    });
+  } else if(user.role === 'vendor' && user.shopId){
+    notifs = DB.getReservations({ shopId:user.shopId }).map(r=>{
+      const p = DB.getProductById(r.productId);
+      return { image:PART_IMAGES[p.category], text:`New reservation for "${p.title}" - status: ${STATUS_LABEL[r.status]}.`, when:r.createdAt };
+    });
+  } else if(user.role === 'admin'){
+    notifs = DB.getShops().filter(s=>!s.verified).map(s=> ({ image:PART_IMAGES["Body Components"], text:`${s.name} is awaiting vendor verification.`, when:Date.now() }));
+  }
+
+  const wrap = document.getElementById('notifList');
+  wrap.innerHTML = notifs.length ? notifs.map(n=>`
+    <div class="row static">
+      <div class="thumb"><img src="${n.image}" alt="" loading="lazy"></div>
+      <div class="row-main"><div class="title">${n.text}</div></div>
+      <div class="row-side"><span class="stock-note">${timeAgo(n.when)}</span></div>
+    </div>
+  `).join('') : `<div class="empty">No notifications yet.</div>`;
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

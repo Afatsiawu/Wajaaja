@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Part detail - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <a class="back-link" href="parts.html">&larr; Back to search</a>
+    <div id="detailContent"></div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+  await DB.ready();
+  renderNavbar('parts');
+
+const p = DB.getProductById(qs('id'));
+if(!p){
+  document.getElementById('detailContent').innerHTML = `<div class="empty">That part couldn't be found. <a href="parts.html">Back to search</a></div>`;
+} else {
+  const shop = DB.getShopById(p.shopId);
+  const status = getShopOperatingStatus(shop.opening, shop.closing, shop.days);
+  const dirUrl = getGoogleMapsDirectionsUrl(shop.lat, shop.lng, shop.name);
+  const whatsappUrl = `https://wa.me/${shop.mechanicPhone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hello ${shop.mechanicName}, I am asking about ${p.title}.`)}`;
+  const reviews = DB.getReviews(shop.id);
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-grid">
+      <div>
+        <div class="hero-thumb"><img src="${PART_IMAGES[p.category]}" alt="${p.title}" onerror="this.style.display='none';this.parentElement.classList.add('image-missing');"></div>
+        <div class="cat-eyebrow">${p.category}</div>
+        <h1 style="margin-bottom:8px;">${p.title}</h1>
+        <div class="product-trust"><span class="rating-label">${shop.rating || "New"} rating</span><span>${shop.reviewCount || reviews.length} rider reviews</span></div>
+        <div class="compat-block">
+          <div class="filter-label" style="margin-bottom:6px;">Fits</div>
+          <div class="tag-list">${p.models.map(m=>`<span class="tag">${m}</span>`).join("")}</div>
+        </div>
+        <p class="desc">${p.desc}</p>
+        <div class="price-row">
+          <div>
+            <div class="price">${ghs(p.price)}</div>
+            <div class="stock-note">${p.available ? p.stock + " in stock at this shop" : "Currently out of stock"}</div>
+          </div>
+          <button class="btn btn-amber" id="reserveBtn" ${p.available?'':'disabled'}>Reserve this part</button>
+        </div>
+        <p class="stock-note">Reservations are held with cash or mobile money paid directly to the vendor on pickup - no online payment required.</p>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="shop-header">
+            <div>
+              <h3><a href="shop.html?id=${shop.id}">${shop.name}</a></h3>
+              <div class="stock-note">${shop.ownerName} &middot; ${shop.ownerPhone}</div>
+            </div>
+            <span class="badge ${status.isOpen?'badge-open':'badge-closed'}">${status.text}</span>
+          </div>
+          <div class="field-row"><div class="k">Landmark</div><div class="v">${shop.landmark}</div></div>
+          <div class="field-row"><div class="k">Hours</div><div class="v">${shop.opening}&ndash;${shop.closing}, ${shop.days}</div></div>
+          <div class="field-row"><div class="k">Fitter</div><div class="v">${shop.mechanicName} - ${shop.mechanicSpec}</div></div>
+          <div class="field-row"><div class="k">Fitter phone</div><div class="v">${shop.mechanicPhone}</div></div>
+          <div class="map-embed"><iframe src="${getMapEmbedUrl(shop.lat,shop.lng)}" loading="lazy" title="Map location for ${shop.name}"></iframe></div>
+          <div class="action-row">
+            <a class="btn btn-outline" href="tel:${shop.ownerPhone.replace(/\\s/g,'')}" id="callBtn">Call vendor</a>
+            <a class="btn btn-outline" href="${whatsappUrl}" target="_blank" rel="noopener" id="whatsappBtn">WhatsApp fitter</a>
+            <a class="btn btn-outline" href="${dirUrl}" target="_blank" rel="noopener" id="dirBtn">Directions to shop</a>
+          </div>
+          <button class="btn btn-ghost btn-sm btn-block" id="favBtn" style="margin-top:10px;">Save this shop</button>
+        </div>
+        <div class="card review-panel">
+          <div class="shop-header"><h3>Rider reviews</h3><span class="rating-label">${shop.rating || "New"} average</span></div>
+          <div class="review-list">${reviews.length ? reviews.slice(0,3).map(review=>`<div class="review"><strong>${review.author}</strong><span>${review.rating}/5</span><p>${review.text}</p></div>`).join('') : '<p class="stock-note">No reviews yet. Be the first rider to share your experience.</p>'}</div>
+          <form class="review-form" id="reviewForm">
+            <label class="filter-label" for="reviewText">Share your experience</label>
+            <div class="review-form-row"><select id="reviewRating" aria-label="Rating"><option value="5">5 / 5</option><option value="4">4 / 5</option><option value="3">3 / 5</option></select><input id="reviewText" required maxlength="180" placeholder="How was the part and service?"><button class="btn btn-primary btn-sm" type="submit">Post review</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  function currentRiderId(){
+    const u = Auth.currentUser();
+    return (u && u.role==="rider") ? u.id : null;
+  }
+
+  document.getElementById('reserveBtn')?.addEventListener('click', async ()=>{
+    const riderId = currentRiderId();
+    if(!riderId){ toast("Log in as a rider to reserve a part."); setTimeout(()=>location.href='login.html', 900); return; }
+    try{
+      await DB.createReservation({ riderId, productId:p.id, shopId:shop.id, qty:1, total:p.price, notes:"" });
+      await DB.logContact({ shopId:shop.id, type:"call", productTitle:p.title, riderName:Auth.currentUser().name });
+      toast(`Reserved: ${p.title}. ${shop.name} will confirm shortly.`);
+    }catch(err){ toast(err.message); }
+  });
+  document.getElementById('dirBtn')?.addEventListener('click', async ()=> { try{ await DB.logContact({ shopId:shop.id, type:"directions", productTitle:p.title, riderName: Auth.currentUser()?.name || "Guest" }); }catch(err){} });
+  document.getElementById('callBtn')?.addEventListener('click', async ()=> { try{ await DB.logContact({ shopId:shop.id, type:"call", productTitle:p.title, riderName: Auth.currentUser()?.name || "Guest" }); }catch(err){} });
+  document.getElementById('whatsappBtn')?.addEventListener('click', async ()=> { try{ await DB.logContact({ shopId:shop.id, type:"whatsapp", productTitle:p.title, riderName: Auth.currentUser()?.name || "Guest" }); }catch(err){} });
+
+  document.getElementById('reviewForm')?.addEventListener('submit', async event=>{
+    event.preventDefault();
+    const user = Auth.currentUser();
+    if(!user || user.role !== 'rider'){
+      toast('Log in as a rider to post a review.');
+      setTimeout(()=>location.href='login.html', 900);
+      return;
+    }
+    try{
+      await DB.addReview({shopId:shop.id, author:user?.name || "Guest rider", rating:Number(document.getElementById('reviewRating').value), text:document.getElementById('reviewText').value.trim()});
+      trackEvent('review_submitted', {shopId:shop.id});
+      toast('Review added. Thanks for helping other riders.');
+      setTimeout(()=>location.reload(), 500);
+    }catch(err){ toast(err.message); }
+  });
+
+  const favBtn = document.getElementById('favBtn');
+  function refreshFavBtn(){
+    const u = Auth.currentUser();
+    const isFav = u?.favorites?.includes(shop.id);
+    favBtn.textContent = isFav ? "Saved to your shops" : "Save this shop";
+  }
+  refreshFavBtn();
+  favBtn.addEventListener('click', async ()=>{
+    const riderId = currentRiderId();
+    if(!riderId){ toast("Log in as a rider to save shops."); setTimeout(()=>location.href='login.html', 900); return; }
+    try{
+      await DB.toggleFavorite(riderId, shop.id);
+      refreshFavBtn();
+      toast("Saved shops updated.");
+    }catch(err){ toast(err.message); }
+  });
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

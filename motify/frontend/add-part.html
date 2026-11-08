@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add a part - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container" style="max-width:640px;">
+    <a class="back-link" href="my-inventory.html">&larr; Back to inventory</a>
+    <h1>Add a part</h1>
+    <p class="lede">List a new spare part. It will appear in rider search results immediately.</p>
+
+    <form id="addPartForm">
+      <div class="field"><label for="title">Part title</label><input type="text" id="title" placeholder="e.g. Front brake pad set" required></div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" required></select>
+        </div>
+        <div class="field"><label for="price">Price, GHS</label><input type="text" id="price" placeholder="85" required></div>
+      </div>
+      <div class="field">
+        <div class="filter-label">Compatible bike models</div>
+        <div class="check-list" id="modelChecks" style="max-height:none;"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label for="stock">Stock quantity</label><input type="text" id="stock" placeholder="10" required></div>
+        <div class="field"><label for="image">Image</label><input type="file" id="image" accept="image/*"></div>
+      </div>
+      <div class="field"><label for="desc">Description</label><textarea id="desc" placeholder="OEM-spec, direct fit..."></textarea></div>
+      <button type="submit" class="btn btn-primary btn-block">List this part</button>
+    </form>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['vendor']);
+if(user){
+  renderNavbar('my-inventory');
+  if(!user.shopId){ location.href = 'shop-profile.html?onboarding=1'; }
+
+  const catSel = document.getElementById('category');
+  CATEGORIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; catSel.appendChild(o); });
+
+  const modelWrap = document.getElementById('modelChecks');
+  MODELS.forEach(m=>{
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.innerHTML = `<input type="checkbox" value="${m}"> ${m}`;
+    modelWrap.appendChild(label);
+  });
+
+  document.getElementById('addPartForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const models = [...modelWrap.querySelectorAll('input:checked')].map(i=>i.value);
+    if(!models.length){ toast("Select at least one compatible bike model."); return; }
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const stock = parseInt(document.getElementById('stock').value) || 0;
+    const button = e.target.querySelector('button[type=submit]');
+    button.disabled = true;
+    try{
+      await DB.addProduct({
+        shopId: user.shopId,
+        title: document.getElementById('title').value.trim(),
+        category: catSel.value,
+        models, price, stock,
+        desc: document.getElementById('desc').value.trim(),
+      });
+      toast("Part listed successfully.");
+      setTimeout(()=> location.href = 'my-inventory.html', 600);
+    }catch(err){ toast(err.message); button.disabled = false; }
+  });
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

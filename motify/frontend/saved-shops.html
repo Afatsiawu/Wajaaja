@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saved shops - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Saved shops</h1>
+    <p class="lede">Your bookmarked spare parts shops and preferred fitters.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="rider-dashboard.html">Overview</a>
+        <a href="my-reservations.html">Reservations</a>
+        <a href="saved-shops.html" class="active">Saved shops</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div class="listing" id="favList"></div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['rider']);
+if(user){
+  renderNavbar('saved-shops');
+  const favs = user.favorites || [];
+  const wrap = document.getElementById('favList');
+  if(!favs.length){
+    wrap.innerHTML = `<div class="empty"><strong>No saved shops yet.</strong><br>Save a shop from any part's detail page.</div>`;
+  } else {
+    wrap.innerHTML = favs.map(id=>{
+      const s = DB.getShopById(id);
+      const status = getShopOperatingStatus(s.opening, s.closing, s.days);
+      const firstProduct = DB.getProducts({shopId:s.id})[0];
+      return `<div class="row" onclick="location.href='part-detail.html?id=${firstProduct ? firstProduct.id : ''}'">
+        <div class="thumb"><img src="${PART_IMAGES['Body Components']}" alt="" loading="lazy"></div>
+        <div class="row-main">
+          <div class="title">${s.name}</div>
+          <div class="meta">${s.landmark} <span class="dot">&middot;</span> ${s.mechanicName}</div>
+        </div>
+        <div class="row-side"><span class="badge ${status.isOpen?'badge-open':'badge-closed'}">${status.text}</span></div>
+      </div>`;
+    }).join('');
+  }
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

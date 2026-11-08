@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My inventory - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>My inventory</h1>
+    <p class="lede">Add, edit, or archive spare parts listings.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="vendor-dashboard.html">Overview</a>
+        <a href="my-inventory.html" class="active">Inventory</a>
+        <a href="reservations-inbox.html">Reservations</a>
+        <a href="shop-profile.html">Shop &amp; fitter</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div>
+        <div class="section-head" style="margin-top:0;">
+          <span class="count" id="invCount"></span>
+          <a href="add-part.html" class="btn btn-primary btn-sm">+ Add a part</a>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Part</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th></tr></thead>
+          <tbody id="invBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['vendor']);
+if(user){
+  renderNavbar('my-inventory');
+  if(!user.shopId){
+    location.href = 'shop-profile.html?onboarding=1';
+  } else {
+    function render(){
+      const mine = DB.getProducts({ shopId: user.shopId });
+      document.getElementById('invCount').textContent = mine.length + " listings";
+      const body = document.getElementById('invBody');
+      body.innerHTML = mine.map(p=>`
+        <tr>
+          <td>${p.title}</td><td>${p.category}</td><td>${ghs(p.price)}</td><td>${p.stock}</td>
+          <td><span class="badge ${p.available?'badge-open':'badge-closed'}">${p.available?'Listed':'Archived'}</span></td>
+          <td><button class="btn btn-ghost btn-sm" data-toggle="${p.id}">${p.available?'Archive':'Restore'}</button></td>
+        </tr>
+      `).join('');
+      body.querySelectorAll('[data-toggle]').forEach(btn=>{
+        btn.addEventListener('click', async ()=>{
+          try{
+            const p = await DB.toggleProductAvailability(btn.dataset.toggle);
+            toast(`${p.title} ${p.available?'is now listed':'was archived'}.`);
+            render();
+          }catch(err){ toast(err.message); }
+        });
+      });
+    }
+    render();
+  }
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

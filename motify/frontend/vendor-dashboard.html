@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor dashboard - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1 id="pageTitle">Vendor dashboard</h1>
+    <p class="lede">Manage your shop profile, listings, and incoming reservations.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="vendor-dashboard.html" class="active">Overview</a>
+        <a href="my-inventory.html">Inventory</a>
+        <a href="reservations-inbox.html">Reservations</a>
+        <a href="shop-profile.html">Shop &amp; fitter</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="section-head" style="margin-top:0;"><h2>Latest reservations</h2></div>
+        <div class="table-wrap" id="recentWrap"></div>
+        <div class="section-head"><h2>Recent contact activity</h2></div>
+        <div class="table-wrap" id="activityWrap"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['vendor']);
+if(user){
+  renderNavbar('vendor-dashboard');
+  if(!user.shopId){
+    document.querySelector('main .container').innerHTML = `
+      <div class="notice-banner">You haven't set up a shop profile yet.</div>
+      <a href="shop-profile.html?onboarding=1" class="btn btn-primary">Set up your shop</a>
+    `;
+  } else {
+    const shop = DB.getShopById(user.shopId);
+    document.getElementById('pageTitle').textContent = `${shop.name} - dashboard`;
+    const shopRes = DB.getReservations({ shopId: shop.id });
+    const activity = DB.getContactLog({ shopId: shop.id });
+
+    document.getElementById('statGrid').innerHTML = `
+      <div class="stat"><div class="num">${shopRes.filter(r=>r.status==='pending').length}</div><div class="label">Awaiting confirmation</div></div>
+      <div class="stat"><div class="num">${shopRes.filter(r=>r.status==='ready_for_pickup').length}</div><div class="label">Ready for pickup</div></div>
+      <div class="stat"><div class="num">${shopRes.filter(r=>r.status==='completed').length}</div><div class="label">Completed</div></div>
+      <div class="stat"><div class="num">${ghs(shopRes.reduce((a,r)=>a+r.total,0))}</div><div class="label">Reserved value</div></div>
+    `;
+
+    const recent = shopRes.slice(0,5);
+    document.getElementById('recentWrap').innerHTML = recent.length ? `
+      <table><thead><tr><th>Part</th><th>Qty</th><th>Total</th><th>Status</th><th>When</th></tr></thead>
+      <tbody>${recent.map(r=>{
+        const p = DB.getProductById(r.productId);
+        return `<tr><td>${p.title}</td><td>${r.qty}</td><td>${ghs(r.total)}</td>
+          <td><span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABEL[r.status]}</span></td><td>${timeAgo(r.createdAt)}</td></tr>`;
+      }).join('')}</tbody></table>
+    ` : `<div class="empty">No reservations yet.</div>`;
+
+    document.getElementById('activityWrap').innerHTML = activity.length ? `
+      <table><thead><tr><th>Rider</th><th>Action</th><th>Part</th><th>When</th></tr></thead>
+      <tbody>${activity.slice(0,6).map(c=>`
+        <tr><td>${c.riderName}</td><td>${c.type==='call'?'Phone call':'Directions requested'}</td><td>${c.productTitle}</td><td>${timeAgo(c.when)}</td></tr>
+      `).join('')}</tbody></table>
+    ` : `<div class="empty">No contact activity yet.</div>`;
+  }
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

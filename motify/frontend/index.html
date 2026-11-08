@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motify - Motorcycle spare parts and fitters in Kwabenya</title>
+<meta name="description" content="Find motorcycle spare parts in Kwabenya, Accra. See which shops are open, get directions or a fitter's number in one tap, and reserve for pickup - cash or MoMo, no online payment.">
+<meta property="og:title" content="Motify - Find the part. Call the fitter.">
+<meta property="og:description" content="Search verified motorcycle spare parts shops and fitters across Kwabenya.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#1B1E24">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-copy">
+        <div class="eyebrow">Kwabenya, Accra</div>
+        <h1>Find the part.<br>Call the fitter.</h1>
+        <p class="lede">Search motorcycle spare parts across Kwabenya's shops, see who's open right now, and reserve for pickup - cash or MoMo, no online payment required.</p>
+      </div>
+      <form id="hero-search" class="hero-search">
+        <div class="field">
+          <label for="hk">What do you need?</label>
+          <input type="text" id="hk" placeholder="e.g. brake pads, chain">
+        </div>
+        <div class="field">
+          <label for="hm">Your bike</label>
+          <select id="hm"><option value="">All models</option></select>
+        </div>
+        <div class="field">
+          <label for="hc">Part type</label>
+          <select id="hc"><option value="">All categories</option></select>
+        </div>
+          <button type="submit">Find parts</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stat-bar">
+    <div class="container grid4">
+      <div><div class="stat-num" id="statVendors">0</div><div class="stat-label">Verified vendors</div></div>
+      <div><div class="stat-num" id="statParts">0</div><div class="stat-label">Listed parts</div></div>
+      <div><div class="stat-num" id="statRiders">0</div><div class="stat-label">Riders using the platform</div></div>
+      <div><div class="stat-num" id="statZones">0</div><div class="stat-label">Kwabenya sub-zones covered</div></div>
+    </div>
+  </section>
+
+  <section class="trust-strip" aria-label="Platform benefits">
+    <div class="container trust-grid">
+      <div><strong>Verified shops</strong><span>Know who you are buying from</span></div>
+      <div><strong>Live shop status</strong><span>Check opening hours before you ride</span></div>
+      <div><strong>Direct fitter contact</strong><span>Get practical help when you need it</span></div>
+      <div><strong>Pay on pickup</strong><span>Cash or MoMo, no online payment</span></div>
+    </div>
+  </section>
+
+  <!-- FEATURED PARTS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">In stock now</div>
+        <h2>Recently listed parts</h2>
+        <p class="lede" style="margin:8px auto 0;">A sample of what's available across Kwabenya's verified shops right now.</p>
+      </div>
+      <div class="card-grid" id="featuredGrid"></div>
+      <div class="text-center" style="margin-top:28px;">
+        <a href="parts.html" class="btn btn-outline btn-lg">Browse all parts</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ZONES -->
+  <section class="section section-subtle">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">Coverage</div>
+        <h2>Popular Kwabenya sub-zones</h2>
+      </div>
+      <div class="grid4" id="zoneGrid"></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">Simple process</div>
+        <h2>How it works</h2>
+      </div>
+      <div class="grid3">
+        <div class="step-card"><div class="step-num">1</div><h3>Search &amp; compare</h3><p>Filter by bike model, category, or price, and see which shops are open right now.</p></div>
+        <div class="step-card"><div class="step-num">2</div><h3>Reserve the part</h3><p>Hold the part with one tap, or call the vendor and fitter directly for details.</p></div>
+        <div class="step-card"><div class="step-num">3</div><h3>Pick up &amp; pay</h3><p>Get turn-by-turn directions to the shop and pay in cash or MoMo on arrival.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section class="section section-subtle">
+    <div class="container">
+      <div class="section-head center">
+        <div class="eyebrow">From the road</div>
+        <h2>What riders and vendors say</h2>
+      </div>
+      <div class="grid3">
+        <div class="testimonial-card">
+          <div class="rating-label">5.0 rating</div>
+          <p class="testimonial-text">I used to ride round three shops before finding a CDI unit. Now I check which shop has it and if they're open, before I even start the bike.</p>
+          <div class="testimonial-author"><div class="avatar">YB</div><div><strong>Yaw Boateng</strong><br><span style="color:var(--steel);font-size:12px;">Okada rider, Taifa</span></div></div>
+        </div>
+        <div class="testimonial-card">
+          <div class="rating-label">5.0 rating</div>
+          <p class="testimonial-text">Riders can see our opening hours and call our fitter directly. We get fewer wasted trips from customers arriving when we're closed.</p>
+          <div class="testimonial-author"><div class="avatar" style="background:var(--moss-bg);color:var(--moss);">KA</div><div><strong>Kofi Adjei</strong><br><span style="color:var(--steel);font-size:12px;">Vendor, Adjei Bike Spares</span></div></div>
+        </div>
+        <div class="testimonial-card">
+          <div class="rating-label">4.0 rating</div>
+          <p class="testimonial-text">No online payment confusion - I just reserve, ride over, and pay cash when I collect. Straightforward.</p>
+          <div class="testimonial-author"><div class="avatar" style="background:#FBF0DD;color:var(--amber-dark);">AK</div><div><strong>Ama Konadu</strong><br><span style="color:var(--steel);font-size:12px;">Delivery courier</span></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-band">
+    <div class="container">
+      <h2>Run a spare parts shop in Kwabenya?</h2>
+      <p>List your inventory, assign your fitter, and reach riders searching for parts right now.</p>
+      <a href="register.html?role=vendor" class="btn btn-amber btn-lg">List your shop - it's free</a>
+    </div>
+  </section>
+
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+  await DB.ready();
+  renderNavbar('index');
+
+// Populate hero search selects
+const hm = document.getElementById('hm'), hc = document.getElementById('hc');
+MODELS.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; hm.appendChild(o); });
+CATEGORIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; hc.appendChild(o); });
+
+document.getElementById('hero-search').addEventListener('submit', e=>{
+  e.preventDefault();
+  trackEvent('hero_search', {term:document.getElementById('hk').value.trim(), model:hm.value, category:hc.value});
+  const params = new URLSearchParams();
+  if(document.getElementById('hk').value.trim()) params.set('search', document.getElementById('hk').value.trim());
+  if(hm.value) params.set('model', hm.value);
+  if(hc.value) params.set('category', hc.value);
+  window.location.href = 'parts.html' + (params.toString() ? '?'+params : '');
+});
+
+// Stats
+const stats = DB.getStats();
+document.getElementById('statVendors').textContent = stats.vendorCount;
+document.getElementById('statParts').textContent = stats.partsCount;
+document.getElementById('statRiders').textContent = stats.riderCount;
+document.getElementById('statZones').textContent = Object.keys(stats.zones).length;
+
+// Featured parts (first 6 in-stock)
+const featured = DB.getProducts().filter(p=>p.available).slice(0,6);
+document.getElementById('featuredGrid').innerHTML = featured.map(renderPartCard).join('');
+
+// Real local destinations for the coverage tiles
+const zonePlaces = [
+  {name:"Kwabenya Roundabout", query:"Kwabenya Roundabout, Accra, Ghana", aliases:["Atomic Junction end"]},
+  {name:"Kwabenya Market", query:"Kwabenya Market, Accra, Ghana", aliases:["Taifa border"]},
+  {name:"Taifa Market", query:"Taifa Market, Accra, Ghana", aliases:["Ashesi/Berekuso road axis"]},
+  {name:"Ashesi University", query:"Ashesi University, Berekuso, Ghana", aliases:[]}
+];
+const zoneImages = [
+  "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=900&q=85",
+  "https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=900&q=85",
+  "https://images.unsplash.com/photo-1558981033-0f0309284409?auto=format&fit=crop&w=900&q=85",
+  "https://images.unsplash.com/photo-1591637333184-19aa84b3e01f?auto=format&fit=crop&w=900&q=85"
+];
+document.getElementById('zoneGrid').innerHTML = zonePlaces.map((place,i)=>{
+  const shops = DB.getShops().filter(shop=>place.aliases.includes(shop.zone)).length;
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.query)}`;
+  return `
+  <a class="zone-card" href="${mapUrl}" target="_blank" rel="noopener">
+    <img class="zone-image" src="${zoneImages[i%zoneImages.length]}" alt="Motorcycle parts near ${place.name}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('image-missing');">
+    <div class="zone-card-info">
+      <h3>${place.name}</h3>
+      <p>${shops} shops nearby · Open in Google Maps</p>
+    </div>
+  </a>
+`;}).join('');
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

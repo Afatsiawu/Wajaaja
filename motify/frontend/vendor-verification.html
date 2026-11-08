@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendor verification - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Vendor verification</h1>
+    <p class="lede">Approve or reject new vendor shop registrations to maintain platform quality and prevent counterfeit or stolen listings.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="admin-dashboard.html">Overview</a>
+        <a href="vendor-verification.html" class="active">Verification</a>
+        <a href="manage-categories.html">Categories</a>
+        <a href="manage-users.html">Users</a>
+        <a href="reports.html">Reports</a>
+      </nav>
+
+      <div class="listing" id="shopList"></div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['admin']);
+if(user){
+  renderNavbar('vendor-verification');
+
+  function render(){
+    const shops = DB.getShops();
+    document.getElementById('shopList').innerHTML = shops.map(s=>`
+      <div class="row static">
+        <div class="thumb"><img src="${PART_IMAGES['Body Components']}" alt="" loading="lazy"></div>
+        <div class="row-main">
+          <div class="title">${s.name}</div>
+          <div class="meta">${s.ownerName} &middot; ${s.ownerPhone} &middot; ${s.zone}</div>
+          <div class="meta">Fitter: ${s.mechanicName} &middot; ${s.mechanicPhone}</div>
+        </div>
+        <div class="row-side">
+          ${s.verified
+            ? `<span class="verify-badge">✓ Verified</span>`
+            : `<div class="action-row" style="margin-top:0;">
+                 <button class="btn btn-outline btn-sm" data-reject="${s.id}">Reject</button>
+                 <button class="btn btn-primary btn-sm" data-approve="${s.id}">Approve</button>
+               </div>`
+          }
+        </div>
+      </div>
+    `).join('');
+    document.querySelectorAll('[data-approve]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          await DB.approveShop(btn.dataset.approve);
+          toast("Vendor approved and listed live.");
+          render();
+        }catch(err){ toast(err.message); }
+      });
+    });
+    document.querySelectorAll('[data-reject]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ toast("Vendor registration rejected."); });
+    });
+  }
+  render();
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

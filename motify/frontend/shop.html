@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+<main><div class="container" id="shopContent"></div></main>
+<div id="footer-target"></div>
+<script src="database.js"></script><script src="auth.js"></script><script src="app.js"></script>
+<script>
+(async () => {
+try {
+  await DB.ready();
+  renderNavbar('parts');
+const shop = DB.getShopById(qs('id'));
+if(!shop){ document.getElementById('shopContent').innerHTML = '<div class="empty">That shop could not be found. <a href="parts.html">Browse parts</a></div>'; }
+else {
+  const status = getShopOperatingStatus(shop.opening, shop.closing, shop.days);
+  const products = DB.getProducts({shopId:shop.id});
+  const whatsappUrl = `https://wa.me/${shop.mechanicPhone.replace(/\D/g,'')}?text=${encodeURIComponent(`Hello ${shop.mechanicName}, I would like to ask about your parts.`)}`;
+  trackEvent('shop_view', {shopId:shop.id});
+  document.title = `${shop.name} - Motify`;
+  document.getElementById('shopContent').innerHTML = `
+    <a class="back-link" href="parts.html">Back to parts</a>
+    <div class="shop-page-header">
+      <div><div class="eyebrow">${shop.verified ? 'Verified vendor' : 'Vendor listing'}</div><h1>${shop.name}</h1><p class="lede">${shop.landmark}</p></div>
+      <span class="badge ${status.isOpen?'badge-open':'badge-closed'}">${status.text}</span>
+    </div>
+    <div class="detail-grid shop-page-grid">
+      <div><div class="card"><h3>Shop and fitter</h3><div class="field-row"><div class="k">Owner</div><div class="v">${shop.ownerName}</div></div><div class="field-row"><div class="k">Hours</div><div class="v">${shop.opening}&ndash;${shop.closing}, ${shop.days}</div></div><div class="field-row"><div class="k">Fitter</div><div class="v">${shop.mechanicName} - ${shop.mechanicSpec}</div></div><div class="field-row"><div class="k">Phone</div><div class="v">${shop.mechanicPhone}</div></div><div class="action-row"><a class="btn btn-outline" href="tel:${shop.ownerPhone.replace(/\s/g,'')}">Call shop</a><a class="btn btn-outline" href="${whatsappUrl}" target="_blank" rel="noopener">WhatsApp fitter</a></div><div class="map-embed"><iframe src="${getMapEmbedUrl(shop.lat,shop.lng)}" loading="lazy" title="Map location for ${shop.name}"></iframe></div><a class="btn btn-primary btn-block" href="${getGoogleMapsDirectionsUrl(shop.lat,shop.lng,shop.name)}" target="_blank" rel="noopener">Get directions</a></div></div>
+      <div><div class="section-head"><div class="eyebrow">Available here</div><h2>${products.length} listed parts</h2></div><div class="card-grid">${products.length ? products.map(renderPartCard).join('') : '<div class="empty">No parts listed yet.</div>'}</div></div>
+    </div>`;
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

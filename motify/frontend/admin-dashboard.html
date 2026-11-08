@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin overview - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Platform overview</h1>
+    <p class="lede">Active vendors, listed parts, and reservation activity across Kwabenya.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="admin-dashboard.html" class="active">Overview</a>
+        <a href="vendor-verification.html">Verification</a>
+        <a href="manage-categories.html">Categories</a>
+        <a href="manage-users.html">Users</a>
+        <a href="reports.html">Reports</a>
+      </nav>
+
+      <div>
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="section-head" style="margin-top:0;"><h2>Reservation volume by sub-zone</h2></div>
+        <div class="table-wrap" id="zoneWrap"></div>
+        <div class="section-head"><h2>Vendors awaiting verification</h2></div>
+        <div class="listing" id="pendingList"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['admin']);
+if(user){
+  renderNavbar('admin-dashboard');
+  const stats = DB.getStats();
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><div class="num">${stats.vendorCount}</div><div class="label">Registered vendors</div></div>
+    <div class="stat"><div class="num">${stats.partsCount}</div><div class="label">Listed parts</div></div>
+    <div class="stat"><div class="num">${stats.reservationCount}</div><div class="label">Total reservations</div></div>
+    <div class="stat"><div class="num">${stats.pendingVerification}</div><div class="label">Pending verification</div></div>
+  `;
+  document.getElementById('zoneWrap').innerHTML = `
+    <table><thead><tr><th>Zone</th><th>Vendors</th><th>Reservations</th></tr></thead>
+    <tbody>${Object.keys(stats.zones).map(z=>`<tr><td>${z}</td><td>${stats.zones[z].vendors}</td><td>${stats.zones[z].reservations}</td></tr>`).join('')}</tbody></table>
+  `;
+  const pending = DB.getShops().filter(s=>!s.verified);
+  document.getElementById('pendingList').innerHTML = pending.length ? pending.map(s=>`
+    <div class="row static">
+      <div class="thumb"><img src="${PART_IMAGES['Body Components']}" alt="" loading="lazy"></div>
+      <div class="row-main"><div class="title">${s.name}</div><div class="meta">${s.ownerName} &middot; ${s.zone}</div></div>
+      <div class="row-side"><a href="vendor-verification.html" class="btn btn-outline btn-sm">Review</a></div>
+    </div>
+  `).join('') : `<div class="empty">No vendors awaiting verification.</div>`;
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

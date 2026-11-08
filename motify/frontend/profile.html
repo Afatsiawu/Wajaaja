@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container" style="max-width:520px;">
+    <h1>My profile</h1>
+    <p class="lede">Your account details.</p>
+    <div class="card" id="profileCard"></div>
+    <button class="btn btn-outline" style="margin-top:16px;" id="logoutBtn">Log out</button>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(null);
+if(!user){ window.location.href = 'login.html'; }
+else {
+  renderNavbar('profile');
+  document.getElementById('profileCard').innerHTML = `
+    <div class="field-row"><div class="k">Name</div><div class="v">${user.name}</div></div>
+    <div class="field-row"><div class="k">Role</div><div class="v" style="text-transform:capitalize;">${user.role}</div></div>
+    <div class="field-row"><div class="k">Phone</div><div class="v">${user.phone||'-'}</div></div>
+    ${user.role==='vendor' && user.shopId ? `<div class="field-row"><div class="k">Shop</div><div class="v">${DB.getShopById(user.shopId)?.name || '-'}</div></div>` : ''}
+    ${user.role==='rider' ? `<div class="field-row"><div class="k">Bikes registered</div><div class="v">${(user.garage||[]).length}</div></div>` : ''}
+  `;
+  document.getElementById('logoutBtn').addEventListener('click', ()=> Auth.logout());
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

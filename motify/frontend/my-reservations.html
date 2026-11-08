@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My reservations - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>My reservations</h1>
+    <p class="lede">Track every part you've reserved, and its pickup status.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="rider-dashboard.html">Overview</a>
+        <a href="my-reservations.html" class="active">Reservations</a>
+        <a href="saved-shops.html">Saved shops</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div id="resContent"></div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['rider']);
+if(user){
+  renderNavbar('my-reservations');
+  const mine = DB.getReservations({ riderId:user.id });
+  document.getElementById('resContent').innerHTML = mine.length ? `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Part</th><th>Shop</th><th>Qty</th><th>Total</th><th>Status</th><th>Requested</th><th></th></tr></thead>
+      <tbody>${mine.map(r=>{
+        const p = DB.getProductById(r.productId), s = DB.getShopById(r.shopId);
+        return `<tr>
+          <td>${p.title}</td><td>${s.name}</td><td>${r.qty}</td><td>${ghs(r.total)}</td>
+          <td><span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABEL[r.status]}</span></td>
+          <td>${timeAgo(r.createdAt)}</td>
+          <td><a href="part-detail.html?id=${p.id}" class="btn btn-ghost btn-sm">View part</a></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  ` : `<div class="empty">No reservations yet. <a href="parts.html">Browse parts</a> to reserve one.</div>`;
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

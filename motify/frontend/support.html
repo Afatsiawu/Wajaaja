@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+<main><div class="container" style="max-width:760px;">
+  <div class="eyebrow">Help centre</div>
+  <h1>How can we help?</h1>
+  <p class="lede">Need help finding a part, contacting a shop, or managing a reservation? Start with the options below.</p>
+  <div class="grid3 support-grid">
+    <div class="card"><h3>Find a part</h3><p class="stock-note">Search by part name, bike model, category, or price.</p><a class="btn btn-outline btn-sm" href="parts.html">Browse parts</a></div>
+    <div class="card"><h3>Contact a shop</h3><p class="stock-note">Open a part listing to call the vendor or message the fitter on WhatsApp.</p><a class="btn btn-outline btn-sm" href="parts.html">Find a shop</a></div>
+    <div class="card"><h3>Vendor support</h3><p class="stock-note">Vendors can update inventory or ask about listing their shop.</p><a class="btn btn-outline btn-sm" href="register.html?role=vendor">List your shop</a></div>
+  </div>
+  <div class="card" style="margin-top:20px;"><h3>Direct support</h3><p class="stock-note">For platform questions, contact the Motify team through your local administrator. Reservations are confirmed directly by each shop.</p></div>
+</div></main>
+<div id="footer-target"></div>
+<script src="database.js"></script><script src="auth.js"></script><script src="app.js"></script><script>(async()=>{try{await DB.ready();renderNavbar('support');}catch(err){showLoadError(err);}})();</script>
+</body>
+</html>

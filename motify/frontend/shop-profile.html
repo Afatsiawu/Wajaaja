@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop &amp; fitter profile - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Shop &amp; fitter profile</h1>
+    <p class="lede">Every listing shows this shop's landmark, hours, and assigned fitter automatically.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="vendor-dashboard.html">Overview</a>
+        <a href="my-inventory.html">Inventory</a>
+        <a href="reservations-inbox.html">Reservations</a>
+        <a href="shop-profile.html" class="active">Shop &amp; fitter</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div id="profileContent"></div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['vendor']);
+if(user){
+  renderNavbar('shop-profile');
+  const isOnboarding = qs('onboarding') === '1' && !user.shopId;
+  const shop = user.shopId ? DB.getShopById(user.shopId) : null;
+
+  function fieldsHtml(s){
+    return `
+      <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;">
+        <div>
+          <h3 style="margin-bottom:14px;">Shop profile</h3>
+          <div class="form-grid">
+            <div class="field"><label>Shop name</label><input type="text" id="fShopName" value="${s?.name||''}"></div>
+            <div class="field"><label>Zone</label><input type="text" id="fZone" value="${s?.zone||''}" placeholder="e.g. Atomic Junction end"></div>
+          </div>
+          <div class="field"><label>Physical landmark</label><input type="text" id="fLandmark" value="${s?.landmark||''}" placeholder="Near Kwabenya Roundabout, opposite Shell Station"></div>
+          <div class="form-grid">
+            <div class="field"><label>Opening time</label><input type="text" id="fOpen" value="${s?.opening||'07:00'}"></div>
+            <div class="field"><label>Closing time</label><input type="text" id="fClose" value="${s?.closing||'18:00'}"></div>
+          </div>
+          <div class="field"><label>Operating days</label><input type="text" id="fDays" value="${s?.days||'Mon-Sat'}"></div>
+          <div class="form-grid">
+            <div class="field"><label>Latitude</label><input type="text" id="fLat" value="${s?.lat||'5.6875'}"></div>
+            <div class="field"><label>Longitude</label><input type="text" id="fLng" value="${s?.lng||'-0.2015'}"></div>
+          </div>
+          <h3 style="margin:22px 0 14px;">Assigned fitter</h3>
+          <div class="form-grid">
+            <div class="field"><label>Fitter name</label><input type="text" id="fMechName" value="${s?.mechanicName||''}"></div>
+            <div class="field"><label>Fitter phone</label><input type="text" id="fMechPhone" value="${s?.mechanicPhone||''}"></div>
+          </div>
+          <div class="field"><label>Specialization</label><input type="text" id="fMechSpec" value="${s?.mechanicSpec||''}"></div>
+          <button class="btn btn-primary" id="saveProfileBtn">${isOnboarding ? 'Create shop profile' : 'Save changes'}</button>
+          ${!isOnboarding ? `<p class="stock-note" style="margin-top:10px;">${s.verified ? 'Verified by admin' : 'Pending admin verification - your shop is visible but unverified to riders.'}</p>` : ''}
+        </div>
+        <div>
+          <h3 style="margin-bottom:14px;">Map pin preview</h3>
+          <div class="map-embed" id="mapPreview" style="height:220px;"></div>
+          <p class="stock-note">Update latitude/longitude to move the pin riders use for turn-by-turn navigation.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function refreshMap(){
+    const lat = document.getElementById('fLat').value || 5.6875;
+    const lng = document.getElementById('fLng').value || -0.2015;
+    document.getElementById('mapPreview').innerHTML = `<iframe src="${getMapEmbedUrl(lat,lng)}" loading="lazy" title="Shop location preview"></iframe>`;
+  }
+
+  document.getElementById('profileContent').innerHTML = (isOnboarding ? `<div class="notice-banner">Welcome! Set up your shop so riders can find you.</div>` : '') + fieldsHtml(shop);
+  refreshMap();
+  document.getElementById('fLat').addEventListener('input', refreshMap);
+  document.getElementById('fLng').addEventListener('input', refreshMap);
+
+  document.getElementById('saveProfileBtn').addEventListener('click', async ()=>{
+    const button = document.getElementById('saveProfileBtn');
+    const patch = {
+      name: document.getElementById('fShopName').value.trim(),
+      zone: document.getElementById('fZone').value.trim(),
+      landmark: document.getElementById('fLandmark').value.trim(),
+      opening: document.getElementById('fOpen').value.trim(),
+      closing: document.getElementById('fClose').value.trim(),
+      days: document.getElementById('fDays').value.trim(),
+      lat: parseFloat(document.getElementById('fLat').value) || 5.6875,
+      lng: parseFloat(document.getElementById('fLng').value) || -0.2015,
+      mechanicName: document.getElementById('fMechName').value.trim(),
+      mechanicPhone: document.getElementById('fMechPhone').value.trim(),
+      mechanicSpec: document.getElementById('fMechSpec').value.trim(),
+    };
+    button.disabled = true;
+    try{
+      if(isOnboarding){
+        await DB.createShop(patch);
+        toast("Shop profile created - pending admin verification.");
+        setTimeout(()=> location.href='vendor-dashboard.html', 700);
+      } else {
+        await DB.updateShop(user.shopId, patch);
+        toast("Shop profile saved.");
+        button.disabled = false;
+      }
+    }catch(err){ toast(err.message); button.disabled = false; }
+  });
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

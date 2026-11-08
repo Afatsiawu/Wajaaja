@@ -1,0 +1,23 @@
+# Netlify reads this file automatically from the repo root when you
+# connect a Git repo (Option B in the frontend README) — it isn't needed
+# for the drag-and-drop dist/ upload method (Option A), but doesn't hurt
+# to have either way.
+
+[build]
+  # The exact command Netlify's build servers run before deploying.
+  command = "npm run build"
+  # Which folder `npm run build` produces — Netlify serves everything
+  # inside this folder as the live site.
+  publish = "dist"
+
+# Single-page app: send all routes to index.html
+# Without this, refreshing the browser on any URL other than the exact
+# homepage (e.g. bookmarking a specific screen, if the app ever adds real
+# URL routing) would 404 on Netlify's static file server, since there's no
+# real file at that path — React Router / this app's own view-switching
+# only takes over once index.html has actually loaded. This redirect rule
+# makes Netlify serve index.html for every path instead of 404ing.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

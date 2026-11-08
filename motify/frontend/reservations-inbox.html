@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reservations inbox - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Reservations</h1>
+    <p class="lede">View real-time incoming part reservations from riders and update pickup status.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="vendor-dashboard.html">Overview</a>
+        <a href="my-inventory.html">Inventory</a>
+        <a href="reservations-inbox.html" class="active">Reservations</a>
+        <a href="shop-profile.html">Shop &amp; fitter</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div class="table-wrap"><table>
+        <thead><tr><th>Part</th><th>Qty</th><th>Total</th><th>Status</th><th>Update</th></tr></thead>
+        <tbody id="ordersBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['vendor']);
+if(user){
+  renderNavbar('reservations-inbox');
+  if(!user.shopId){ location.href = 'shop-profile.html?onboarding=1'; }
+
+  function render(){
+    const shopRes = DB.getReservations({ shopId: user.shopId });
+    const body = document.getElementById('ordersBody');
+    if(!shopRes.length){
+      body.innerHTML = `<tr><td colspan="5"><div class="empty">No reservations yet.</div></td></tr>`;
+      return;
+    }
+    body.innerHTML = shopRes.map(r=>{
+      const p = DB.getProductById(r.productId);
+      const isCancelled = r.status === "cancelled";
+      return `
+        <tr>
+          <td>${p.title}</td><td>${r.qty}</td><td>${ghs(r.total)}</td>
+          <td><span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABEL[r.status]}</span></td>
+          <td>
+            <div class="pipeline">
+              ${STATUS_FLOW.map(s=>`<button data-res="${r.id}" data-status="${s}" class="${r.status===s?'current':''}" ${isCancelled?'disabled':''}>${STATUS_LABEL[s]}</button>`).join("")}
+              <button data-res="${r.id}" data-status="cancelled" class="${r.status==='cancelled'?'current':''}" style="color:var(--rust);">Cancel</button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+    body.querySelectorAll('button[data-res]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          const r = await DB.updateReservationStatus(btn.dataset.res, btn.dataset.status);
+          toast(`Reservation updated to "${STATUS_LABEL[r.status]}"`);
+          render();
+        }catch(err){ toast(err.message); }
+      });
+    });
+  }
+  render();
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

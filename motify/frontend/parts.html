@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browse parts - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Find the part, call the fitter.</h1>
+    <p class="lede">Search parts by bike model or category, see which shops are open right now, and get directions or a phone number in one tap.</p>
+
+    <div class="browse-search-head">
+      <div><div class="eyebrow">Catalog search</div><h2>What are you looking for?</h2></div>
+      <span>Search by part name, then narrow by fitment or shop.</span>
+    </div>
+    <div class="search-bar">
+      <label class="sr-only" for="f-search">Search the parts catalog</label>
+      <input type="text" id="f-search" list="partSuggestions" placeholder="Brake pads, chain, headlamp..." aria-label="Search the parts catalog">
+      <datalist id="partSuggestions"><option value="Brake pads"><option value="Drive chain"><option value="Headlamp"><option value="CDI unit"><option value="Spark plug"><option value="Engine oil"><option value="Tyre"></datalist>
+      <button id="searchGoBtn" type="button">Find parts</button>
+    </div>
+
+    <div class="category-heading"><strong>Browse by category</strong><span>Choose one to narrow the catalog</span></div>
+    <div class="cat-tiles" id="catTiles" style="margin-bottom:30px;"></div>
+
+    <div class="browse-layout">
+      <aside class="filter-rail">
+        <div class="filter-heading"><strong>Refine results</strong><span>Filters update instantly</span></div>
+        <div class="filter-group">
+          <label class="filter-label" for="f-model">Bike model</label>
+          <select id="f-model"><option value="">All models</option></select>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Price, GHS</div>
+          <div class="check-list" id="f-price"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Category</div>
+          <div class="check-list" id="f-categories"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">Shop</div>
+          <label class="check-item"><input type="checkbox" id="f-verified"> Verified vendors only</label>
+          <label class="check-item" style="margin-top:9px;"><input type="checkbox" id="f-open"> Open shops only</label>
+          <label class="check-item" style="margin-top:9px;"><input type="checkbox" id="f-stock" checked> In stock only</label>
+        </div>
+        <button class="clear-filters" id="clearFiltersBtn">Clear all filters</button>
+      </aside>
+
+      <div>
+        <div class="browse-toolbar">
+          <span class="count" id="resultCount" role="status" aria-live="polite"></span>
+          <select id="f-sort" class="sort-select">
+            <option value="relevance">Sort: Relevance</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+          </select>
+        </div>
+        <div class="card-grid" id="productList"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+  await DB.ready();
+  renderNavbar('parts');
+
+const PRICE_RANGES = [
+  {id:"lt50", label:"Under GH₵ 50", test:p=>p<50},
+  {id:"50-150", label:"GH₵ 50 – 150", test:p=>p>=50 && p<150},
+  {id:"150-300", label:"GH₵ 150 – 300", test:p=>p>=150 && p<300},
+  {id:"gt300", label:"Over GH₵ 300", test:p=>p>=300},
+];
+
+let state = { search:"", model:"", zone:"", categories:new Set(), priceRanges:new Set(), openOnly:false, verifiedOnly:false, stockOnly:true, sort:"relevance" };
+
+// Pre-fill from URL params (hero search / zone tile links)
+state.search = (qs('search')||"").toLowerCase();
+state.model = qs('model') || "";
+state.zone = qs('zone') || "";
+if(qs('category')) state.categories.add(qs('category'));
+document.getElementById('f-search').value = qs('search') || "";
+
+function populateFilterOptions(){
+  const modelSel = document.getElementById("f-model");
+  MODELS.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; modelSel.appendChild(o); });
+  modelSel.value = state.model;
+
+  const tileWrap = document.getElementById("catTiles");
+  CATEGORIES.forEach(c=>{
+    const tile = document.createElement("button");
+    tile.className="cat-tile" + (state.categories.has(c) ? " active" : "");
+    tile.dataset.cat=c;
+    tile.innerHTML = `<img class="category-image" src="${PART_IMAGES[c]}" alt="">${c}`;
+    tile.addEventListener("click", ()=>{
+      const active = tile.classList.contains("active");
+      document.querySelectorAll(".cat-tile").forEach(t=>t.classList.remove("active"));
+      state.categories.clear();
+      syncCategoryCheckboxes();
+      if(!active){ tile.classList.add("active"); state.categories.add(c); }
+      renderBrowse();
+    });
+    tileWrap.appendChild(tile);
+  });
+
+  const catWrap = document.getElementById("f-categories");
+  CATEGORIES.forEach(c=>{
+    const count = DB.getProducts().filter(p=>p.category===c).length;
+    const label = document.createElement("label");
+    label.className="check-item";
+    label.innerHTML = `<input type="checkbox" data-cat="${c}" ${state.categories.has(c)?'checked':''}> ${c} <span class="n">${count}</span>`;
+    label.querySelector("input").addEventListener("change", e=>{
+      if(e.target.checked) state.categories.add(c); else state.categories.delete(c);
+      syncCategoryTiles();
+      renderBrowse();
+    });
+    catWrap.appendChild(label);
+  });
+
+  const priceWrap = document.getElementById("f-price");
+  PRICE_RANGES.forEach(r=>{
+    const count = DB.getProducts().filter(p=>r.test(p.price)).length;
+    const label = document.createElement("label");
+    label.className="check-item";
+    label.innerHTML = `<input type="checkbox" data-price="${r.id}"> ${r.label} <span class="n">${count}</span>`;
+    label.querySelector("input").addEventListener("change", e=>{
+      if(e.target.checked) state.priceRanges.add(r.id); else state.priceRanges.delete(r.id);
+      renderBrowse();
+    });
+    priceWrap.appendChild(label);
+  });
+}
+function syncCategoryCheckboxes(){ document.querySelectorAll("#f-categories input[type=checkbox]").forEach(cb=>{ cb.checked = state.categories.has(cb.dataset.cat); }); }
+function syncCategoryTiles(){ document.querySelectorAll(".cat-tile").forEach(t=>{ t.classList.toggle("active", state.categories.has(t.dataset.cat)); }); }
+
+document.getElementById("f-search").addEventListener("input", e=>{ state.search = e.target.value.toLowerCase(); trackEvent("search", {term:e.target.value}); renderBrowse(); });
+document.getElementById("searchGoBtn").addEventListener("click", ()=> renderBrowse());
+document.getElementById("f-model").addEventListener("change", e=>{ state.model = e.target.value; renderBrowse(); });
+document.getElementById("f-sort").addEventListener("change", e=>{ state.sort = e.target.value; renderBrowse(); });
+document.getElementById("f-open").addEventListener("change", e=>{ state.openOnly = e.target.checked; renderBrowse(); });
+document.getElementById("f-verified").addEventListener("change", e=>{ state.verifiedOnly = e.target.checked; renderBrowse(); });
+document.getElementById("f-stock").addEventListener("change", e=>{ state.stockOnly = e.target.checked; renderBrowse(); });
+document.getElementById("clearFiltersBtn").addEventListener("click", ()=>{
+  state = { search:"", model:"", zone:"", categories:new Set(), priceRanges:new Set(), openOnly:false, verifiedOnly:false, stockOnly:false, sort:"relevance" };
+  document.getElementById("f-search").value = "";
+  document.getElementById("f-model").value = "";
+  document.getElementById("f-open").checked = false;
+  document.getElementById("f-verified").checked = false;
+  document.getElementById("f-stock").checked = false;
+  document.querySelectorAll("#f-categories input, #f-price input").forEach(cb=>cb.checked=false);
+  syncCategoryTiles();
+  renderBrowse();
+});
+
+function filteredProducts(){
+  let list = DB.getProducts().filter(p=>{
+    const shop = DB.getShopById(p.shopId);
+    if(state.search && !p.title.toLowerCase().includes(state.search)) return false;
+    if(state.model && !p.models.includes(state.model)) return false;
+    if(state.zone && shop.zone !== state.zone) return false;
+    if(state.categories.size && !state.categories.has(p.category)) return false;
+    if(state.priceRanges.size && ![...state.priceRanges].some(id => PRICE_RANGES.find(r=>r.id===id).test(p.price))) return false;
+    if(state.openOnly && !getShopOperatingStatus(shop.opening,shop.closing,shop.days).isOpen) return false;
+    if(state.verifiedOnly && !shop.verified) return false;
+    if(state.stockOnly && !p.available) return false;
+    return true;
+  });
+  if(state.sort==="price-asc") list = list.slice().sort((a,b)=>a.price-b.price);
+  if(state.sort==="price-desc") list = list.slice().sort((a,b)=>b.price-a.price);
+  return list;
+}
+
+function renderBrowse(){
+  const list = filteredProducts();
+  document.getElementById("resultCount").textContent = list.length + (list.length===1 ? " result" : " results") + (state.zone ? ` in ${state.zone}` : "");
+  const wrap = document.getElementById("productList");
+  wrap.innerHTML = list.length ? list.map(renderPartCard).join("") :
+    `<div class="empty" style="grid-column:1/-1;"><strong>No parts match those filters.</strong><br>Try clearing a filter or searching a different term.</div>`;
+}
+
+populateFilterOptions();
+renderBrowse();
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

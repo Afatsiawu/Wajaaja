@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container auth-shell">
+    <div class="auth-intro">
+      <div class="eyebrow">Welcome to Motify</div>
+      <h1>Keep your next ride moving.</h1>
+      <p class="lede">Sign in to reserve parts, manage your shop, or keep your local inventory current.</p>
+      <div class="auth-proof"><span>Verified local shops</span><span>Live stock status</span><span>Direct fitter contact</span></div>
+    </div>
+    <div class="form-card auth-card">
+      <h2>Sign in</h2>
+      <p class="auth-card-subtitle">Use your Motify account to continue.</p>
+
+      <div class="notice-banner">
+        Demo accounts use the password <strong>demo1234</strong>. Use a quick-login button below, or sign in with your phone/email and password.
+      </div>
+
+      <div class="auth-section-label">Quick demo access</div>
+      <div class="demo-actions">
+        <button class="btn btn-outline btn-block" data-demo="rider1">Rider - Kwame Mensah</button>
+        <button class="btn btn-outline btn-block" data-demo="vendor1">Vendor - Kofi Adjei</button>
+        <button class="btn btn-outline btn-block" data-demo="admin1">Admin - Platform Admin</button>
+      </div>
+
+      <form id="loginForm">
+        <div class="field"><label for="email">Email or phone</label><input type="text" id="email" placeholder="you@example.com" required></div>
+        <div class="field"><label for="password">Password</label><input type="password" id="password" placeholder="••••••••" required></div>
+        <button type="submit" class="btn btn-primary btn-block">Continue to Motify</button>
+      </form>
+      <p class="form-foot">Don't have an account? <a href="register.html" style="color:var(--ink);font-weight:600;">Sign up</a></p>
+      <p class="form-foot"><a href="forgot-password.html">Forgot your password?</a></p>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+  await DB.ready();
+  renderNavbar('login');
+
+  document.querySelectorAll('[data-demo]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      try{
+        const user = await Auth.loginAs(btn.dataset.demo);
+        toast(`Logged in as ${user.name}`);
+        setTimeout(()=>{
+          if(user.role==='rider') location.href='rider-dashboard.html';
+          if(user.role==='vendor') location.href='vendor-dashboard.html';
+          if(user.role==='admin') location.href='admin-dashboard.html';
+        }, 500);
+      }catch(err){ toast(err.message); btn.disabled = false; }
+    });
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const button = e.target.querySelector('button[type=submit]');
+    button.disabled = true;
+    try{
+      const user = await Auth.login(document.getElementById('email').value.trim(), document.getElementById('password').value);
+      toast(`Welcome back, ${user.name.split(' ')[0]}.`);
+      setTimeout(()=>{
+        if(user.role==='rider') location.href='rider-dashboard.html';
+        else if(user.role==='vendor') location.href='vendor-dashboard.html';
+        else location.href='admin-dashboard.html';
+      }, 500);
+    }catch(err){ toast(err.message); button.disabled = false; }
+  });
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

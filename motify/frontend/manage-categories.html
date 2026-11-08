@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Categories &amp; models - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Categories &amp; models</h1>
+    <p class="lede">Maintain master listings for motorcycle brands, models, and spare part sub-categories.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="admin-dashboard.html">Overview</a>
+        <a href="vendor-verification.html">Verification</a>
+        <a href="manage-categories.html" class="active">Categories</a>
+        <a href="manage-users.html">Users</a>
+        <a href="reports.html">Reports</a>
+      </nav>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;">
+        <div>
+          <div class="section-head" style="margin-top:0;"><h2>Part categories</h2></div>
+          <div class="listing" id="catList"></div>
+        </div>
+        <div>
+          <div class="section-head" style="margin-top:0;"><h2>Motorcycle models</h2></div>
+          <div class="listing" id="modelList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['admin']);
+if(user){
+  renderNavbar('manage-categories');
+  const products = DB.getProducts();
+  document.getElementById('catList').innerHTML = CATEGORIES.map(c=>`
+    <div class="row" style="grid-template-columns:40px 1fr auto;cursor:default;">
+      <div class="thumb" style="width:40px;height:40px;"><img src="${PART_IMAGES[c]}" alt="" loading="lazy"></div>
+      <div class="row-main"><div class="title">${c}</div></div>
+      <div class="row-side"><span class="stock-note">${products.filter(p=>p.category===c).length} listings</span></div>
+    </div>
+  `).join('');
+  document.getElementById('modelList').innerHTML = MODELS.map(m=>`
+    <div class="row" style="grid-template-columns:1fr auto;cursor:default;">
+      <div class="row-main"><div class="title">${m}</div></div>
+      <div class="row-side"><span class="stock-note">${products.filter(p=>p.models.includes(m)).length} compatible parts</span></div>
+    </div>
+  `).join('');
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

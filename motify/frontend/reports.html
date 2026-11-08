@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1>Reports</h1>
+    <p class="lede">Search volumes, reservation trends, and vendor performance across Kwabenya.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="admin-dashboard.html">Overview</a>
+        <a href="vendor-verification.html">Verification</a>
+        <a href="manage-categories.html">Categories</a>
+        <a href="manage-users.html">Users</a>
+        <a href="reports.html" class="active">Reports</a>
+      </nav>
+
+      <div>
+        <div class="section-head" style="margin-top:0;"><h2>Reservations by status</h2></div>
+        <div class="table-wrap" id="statusWrap" style="margin-bottom:32px;"></div>
+
+        <div class="section-head"><h2>Top categories by listings</h2></div>
+        <div class="table-wrap" id="catWrap" style="margin-bottom:32px;"></div>
+
+        <div class="section-head"><h2>Vendor performance</h2></div>
+        <div class="table-wrap" id="vendorWrap"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['admin']);
+if(user){
+  renderNavbar('reports');
+  const reservations = DB.getReservations();
+  const products = DB.getProducts();
+  const shops = DB.getShops();
+
+  const byStatus = {};
+  reservations.forEach(r=> byStatus[r.status] = (byStatus[r.status]||0)+1 );
+  document.getElementById('statusWrap').innerHTML = `
+    <table><thead><tr><th>Status</th><th>Count</th></tr></thead>
+    <tbody>${Object.keys(STATUS_LABEL).map(s=>`<tr><td><span class="badge ${STATUS_BADGE[s]}">${STATUS_LABEL[s]}</span></td><td>${byStatus[s]||0}</td></tr>`).join('')}</tbody></table>
+  `;
+
+  const catCounts = CATEGORIES.map(c=>({c, n:products.filter(p=>p.category===c).length})).sort((a,b)=>b.n-a.n);
+  document.getElementById('catWrap').innerHTML = `
+    <table><thead><tr><th>Category</th><th>Listings</th></tr></thead>
+    <tbody>${catCounts.map(x=>`<tr><td><img class="table-part-image" src="${PART_IMAGES[x.c]}" alt=""> ${x.c}</td><td>${x.n}</td></tr>`).join('')}</tbody></table>
+  `;
+
+  document.getElementById('vendorWrap').innerHTML = `
+    <table><thead><tr><th>Vendor</th><th>Listings</th><th>Reservations</th><th>Verified</th></tr></thead>
+    <tbody>${shops.map(s=>`
+      <tr><td>${s.name}</td><td>${products.filter(p=>p.shopId===s.id).length}</td><td>${reservations.filter(r=>r.shopId===s.id).length}</td>
+      <td>${s.verified ? '<span class="verify-badge">✓ Yes</span>' : '<span class="stock-note">Pending</span>'}</td></tr>
+    `).join('')}</tbody></table>
+  `;
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>

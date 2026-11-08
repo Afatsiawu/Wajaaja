@@ -1,0 +1,13 @@
+/* Tailwind's three layers — these three lines get replaced, at build time,
+   with every Tailwind utility class actually used anywhere in src/**. This
+   is the ONLY place Tailwind's generated CSS enters the project. */
+@tailwind base;       /* CSS resets + sensible defaults (browsers' inconsistent default styles) */
+@tailwind components; /* reusable component-level classes (mostly unused in this project, which sticks to utility classes) */
+@tailwind utilities;  /* every individual utility class this project actually uses, e.g. bg-stone-950, text-orange-600, flex, etc. */
+
+html {
+  /* Makes window.scrollTo({ behavior: 'smooth' }) calls in App.jsx (used
+     by the navigate() function and a couple of "scroll to section" buttons)
+     actually animate smoothly instead of jumping instantly. */
+  scroll-behavior: smooth;
+}

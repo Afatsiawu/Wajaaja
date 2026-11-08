@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My dashboard - Motify</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="navbar-target"></div>
+
+<main>
+  <div class="container">
+    <h1 id="pageTitle">Dashboard</h1>
+    <p class="lede">Your bikes, saved shops, and part reservations, all in one place.</p>
+
+    <div class="dash-layout">
+      <nav class="dash-nav">
+        <a href="rider-dashboard.html" class="active">Overview</a>
+        <a href="my-reservations.html">Reservations</a>
+        <a href="saved-shops.html">Saved shops</a>
+        <a href="profile.html">Profile</a>
+      </nav>
+
+      <div>
+        <div class="stat-grid" id="statGrid"></div>
+
+        <div class="section-head" style="margin-top:0;"><h2>Recent reservations</h2></div>
+        <div class="table-wrap" id="recentWrap"></div>
+
+        <div class="section-head"><h2>Your garage</h2></div>
+        <div class="card" style="max-width:420px;" id="garageCard"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-target"></div>
+
+<script src="database.js"></script>
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+try {
+const user = await Auth.requireRole(['rider']);
+if(user){
+  renderNavbar('rider-dashboard');
+  document.getElementById('pageTitle').textContent = `${user.name.split(' ')[0]}'s dashboard`;
+
+  const myRes = DB.getReservations({ riderId:user.id });
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><div class="num">${myRes.filter(r=>['pending','confirmed'].includes(r.status)).length}</div><div class="label">Active reservations</div></div>
+    <div class="stat"><div class="num">${myRes.filter(r=>r.status==='ready_for_pickup').length}</div><div class="label">Ready for pickup</div></div>
+    <div class="stat"><div class="num">${(user.favorites||[]).length}</div><div class="label">Saved shops</div></div>
+    <div class="stat"><div class="num">${(user.garage||[]).length}</div><div class="label">Registered bikes</div></div>
+  `;
+
+  const recent = myRes.slice(0,5);
+  document.getElementById('recentWrap').innerHTML = recent.length ? `
+    <table>
+      <thead><tr><th>Part</th><th>Shop</th><th>Total</th><th>Status</th><th>Requested</th></tr></thead>
+      <tbody>${recent.map(r=>{
+        const p = DB.getProductById(r.productId), s = DB.getShopById(r.shopId);
+        return `<tr><td>${p.title}</td><td>${s.name}</td><td>${ghs(r.total)}</td>
+          <td><span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABEL[r.status]}</span></td>
+          <td>${timeAgo(r.createdAt)}</td></tr>`;
+      }).join('')}</tbody>
+    </table>
+  ` : `<div class="empty">No reservations yet. <a href="parts.html">Browse parts</a> to reserve one.</div>`;
+
+  document.getElementById('garageCard').innerHTML = (user.garage||[]).length ? `
+    ${user.garage.map(v=>`<div class="field-row"><div class="k">${v.make}</div><div class="v">${v.model}, ${v.year} &middot; ${v.cc}cc</div></div>`).join('')}
+    <button class="btn btn-outline btn-sm" style="margin-top:12px;" id="addBikeBtn">+ Add a bike</button>
+  ` : `<p class="stock-note">No bikes registered yet.</p><button class="btn btn-outline btn-sm" id="addBikeBtn">+ Add a bike</button>`;
+
+  document.getElementById('addBikeBtn')?.addEventListener('click', async ()=>{
+    const model = prompt("Bike model (e.g. Bajaj Boxer 150):");
+    if(!model) return;
+    try{
+      await DB.addVehicle(user.id, { make: model.split(' ')[0], model, year: new Date().getFullYear(), cc: 150 });
+      toast("Bike added to your garage.");
+      setTimeout(()=>location.reload(), 500);
+    }catch(err){ toast(err.message); }
+  });
+}
+} catch(err){ showLoadError(err); }
+})();
+</script>
+</body>
+</html>
