@@ -2404,6 +2404,10 @@ function AccountView() {
 
 function NotificationsView() {
   const { notifications, refreshNotifications, markNotificationRead, markAllRead } = useApp();
+  // Always pull the latest list when this screen opens, so a freshly
+  // placed order's notification shows up even if the post-order refresh
+  // was missed (e.g. a slow/cold backend).
+  useEffect(() => { refreshNotifications(); }, []);
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
