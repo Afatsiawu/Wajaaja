@@ -16,7 +16,13 @@ from rest_framework.decorators import action
 # toggle_duty endpoint's result as JSON.
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAuthenticatedOrReadOnly
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError, APIException
+
+
+class PayloadTooLarge(APIException):
+    status_code = 413
+    default_detail = "File too large."
+    default_code = "payload_too_large"
 
 from .models import Shop, Mechanic, Category, Product
 from .serializers import ShopSerializer, MechanicSerializer, CategorySerializer, ProductSerializer
@@ -154,7 +160,33 @@ class ProductViewSet(viewsets.ModelViewSet):
             shop = serializer.validated_data.get("shop")
             if not shop or shop.owner_id != self.request.user.id:
                 raise PermissionDenied("You can only list products for your own shop.")
-        serializer.save()
+
+        image = self.request.FILES.get("image")
+        image_url = serializer.validated_data.get("image_url", "") or ""
+        image_public_id = ""
+        if image:
+            if image.size > 5 * 1024 * 1024:
+                raise PayloadTooLarge({"image": "Image too large (max 5 MB)."})
+            if not (image.content_type or "").startswith("image/"):
+                raise ValidationError({"image": "Only image files (JPG, PNG, WEBP) are allowed."})
+            from django.conf import settings as dj_settings
+            if not (dj_settings.CLOUDINARY_CLOUD_NAME and dj_settings.CLOUDINARY_API_KEY and dj_settings.CLOUDINARY_API_SECRET):
+                raise ValidationError({"image": "Image upload is not configured on the server."})
+            import cloudinary.uploader
+            result = cloudinary.uploader.upload(image, folder="kwabenya-spares/products")
+            image_url = result.get("secure_url", "")
+            image_public_id = result.get("public_id", "")
+
+        serializer.save(image_url=image_url, image_public_id=image_public_id)
+
+    def perform_destroy(self, instance):
+        if instance.image_public_id:
+            try:
+                import cloudinary.uploader
+                cloudinary.uploader.destroy(instance.image_public_id)
+            except Exception:
+                pass
+        instance.delete()
 
     def perform_update(self, serializer):
         # Sellers cannot move a listing into another seller's shop.
@@ -162,7 +194,30 @@ class ProductViewSet(viewsets.ModelViewSet):
             shop = serializer.validated_data.get("shop")
             if shop and shop.owner_id != self.request.user.id:
                 raise PermissionDenied("You can only list products for your own shop.")
-        serializer.save()
+
+        image = self.request.FILES.get("image")
+        image_url = serializer.validated_data.get("image_url", serializer.instance.image_url)
+        image_public_id = serializer.instance.image_public_id
+        if image:
+            if image.size > 5 * 1024 * 1024:
+                raise PayloadTooLarge({"image": "Image too large (max 5 MB)."})
+            if not (image.content_type or "").startswith("image/"):
+                raise ValidationError({"image": "Only image files (JPG, PNG, WEBP) are allowed."})
+            from django.conf import settings as dj_settings
+            if not (dj_settings.CLOUDINARY_CLOUD_NAME and dj_settings.CLOUDINARY_API_KEY and dj_settings.CLOUDINARY_API_SECRET):
+                raise ValidationError({"image": "Image upload is not configured on the server."})
+            if image_public_id:
+                try:
+                    import cloudinary.uploader
+                    cloudinary.uploader.destroy(image_public_id)
+                except Exception:
+                    pass
+            import cloudinary.uploader
+            result = cloudinary.uploader.upload(image, folder="kwabenya-spares/products")
+            image_url = result.get("secure_url", "")
+            image_public_id = result.get("public_id", "")
+
+        serializer.save(image_url=image_url, image_public_id=image_public_id)
 
     # get_queryset: builds up the filtered/sorted queryset step by step
     # from whichever query-string parameters are actually present —

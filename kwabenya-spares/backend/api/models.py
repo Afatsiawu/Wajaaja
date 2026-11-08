@@ -168,6 +168,7 @@ class Product(models.Model):
     # image_url: matches `image_url VARCHAR(255)` — optional, since there
     # are no real product photos yet (the frontend uses category icons instead).
     image_url = models.CharField(max_length=255, blank=True)
+    image_public_id = models.CharField(max_length=255, blank=True, default="")
     # created_at: matches `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`.
     created_at = models.DateTimeField(auto_now_add=True)
 

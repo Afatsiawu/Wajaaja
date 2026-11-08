@@ -72,7 +72,17 @@ export const api = {
 
   getProducts: (params = {}) => request(`/products/?${new URLSearchParams(params)}`),
   getProduct: (id) => request(`/products/${id}/`),
-  createProduct: (data) => request('/products/', { method: 'POST', body: JSON.stringify(data) }),
+  createProduct: (data, imageFile) => {
+    if (imageFile) {
+      const fd = new FormData();
+      Object.entries(data).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') fd.append(k, v);
+      });
+      fd.append('image', imageFile);
+      return request('/products/', { method: 'POST', body: fd });
+    }
+    return request('/products/', { method: 'POST', body: JSON.stringify(data) });
+  },
   updateProduct: (id, patch) => request(`/products/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteProduct: (id) => request(`/products/${id}/`, { method: 'DELETE' }),
 

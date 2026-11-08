@@ -100,6 +100,18 @@ const CATEGORY_IMAGES = {
   8: 'oil-filter.jfif',                          // Filters & Fluids
 };
 
+
+// resolveImageUrl: uploaded images come back as full https:// URLs (Cloudinary),
+// while seeded images are bare filenames served from /public/images. Handle both.
+function resolveImageUrl(url, categoryId) {
+  if (!url) {
+    const fallback = categoryId ? CATEGORY_IMAGES[categoryId] : null;
+    return fallback ? `/images/${fallback}` : '';
+  }
+  if (url.startsWith('http')) return url;
+  return `/images/${url}`;
+}
+
 // SHOPS_INIT: the starting value loaded into React state for every shop.
 // Each object corresponds to one row of the `shops` table PLUS its
 // one-to-one `mechanics` row nested inline as `mechanic` (in the real
@@ -855,7 +867,7 @@ function ProductCard({ product }) {
       <button onClick={() => navigate('productDetail', { productId: product.product_id })} className="text-left flex flex-col flex-1">
         {/* Product image from /images (served from public/) with a gradient fallback */}
         <div className="h-28 bg-gradient-to-br from-stone-800 to-stone-900 flex items-center justify-center overflow-hidden">
-          <img src={product.image_url ? `/images/${product.image_url}` : `/images/${CATEGORY_IMAGES[product.category_id]}`} alt={category?.category_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+          <img src={resolveImageUrl(product.image_url, product.category_id)} alt={category?.category_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
         </div>
         <div className="p-3 flex flex-col gap-1 flex-1">
           <span className="text-xs uppercase tracking-wider text-stone-500 font-mono">{category?.category_name}</span>
@@ -1353,7 +1365,7 @@ function ProductDetailView() {
         {/* Left column: placeholder "image" panel (icon on a gradient, same idea as the product card thumbnail but bigger) */}
         <div className="lg:col-span-2">
           <div className="bg-gradient-to-br from-stone-800 to-stone-900 border border-stone-800 rounded-sm h-64 sm:h-80 flex items-center justify-center overflow-hidden">
-            <img src={product.image_url ? `/images/${product.image_url}` : `/images/${CATEGORY_IMAGES[product.category_id]}`} alt={category?.category_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+            <img src={resolveImageUrl(product.image_url, product.category_id)} alt={category?.category_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
           </div>
         </div>
 
@@ -1802,23 +1814,47 @@ function NewProductForm({ shopId }) {
   const blank = { part_name: '', category_id: 1, compatible_models: '', description: '', price: '', stock_quantity: '' };
   const [form, setForm] = useState(blank); // the in-progress new-product form values
   const [open, setOpen] = useState(false); // whether the form fields are expanded (vs. just the collapsed button)
+  const [imageFile, setImageFile] = useState(null); // selected image file
+  const [imagePreview, setImagePreview] = useState(null); // preview URL
+  const [saving, setSaving] = useState(false); // upload in progress
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Only image files (JPG, PNG, WEBP) are allowed'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5 MB'); return; }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+  };
 
   // submit: minimal validation (name, price, and compatible models must be
   // non-empty), then hands the data off to addProduct() from context —
   // which is responsible for actually generating the new product_id — and
   // resets the form back to its collapsed, blank state.
-  const submit = () => {
+  const submit = async () => {
     if (!form.part_name.trim() || !form.price || !form.compatible_models.trim()) return; // silently do nothing if required fields are missing
-    addProduct({
-      ...form,
-      shop_id: shopId, // always attach the new part to the seller's own shop
-      category_id: Number(form.category_id), // <select> values arrive as strings — convert back to a number
-      price: Number(form.price),
-      stock_quantity: Number(form.stock_quantity) || 0, // default to 0 if left blank rather than NaN
-    });
-    showToast('Part added to your listing');
-    setForm(blank); // reset the form
-    setOpen(false); // collapse it again
+    setSaving(true);
+    try {
+      await addProduct({
+        ...form,
+        shop_id: shopId, // always attach the new part to the seller's own shop
+        category_id: Number(form.category_id), // <select> values arrive as strings — convert back to a number
+        price: Number(form.price),
+        stock_quantity: Number(form.stock_quantity) || 0, // default to 0 if left blank rather than NaN
+      }, imageFile);
+      showToast('Part added to your listing');
+      setForm(blank); // reset the form
+      removeImage();
+      setOpen(false); // collapse it again
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Collapsed state: just a dashed "List a new part" button.
@@ -1850,10 +1886,26 @@ function NewProductForm({ shopId }) {
         <input type="number" min="0" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="Price (GH₵)" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
         <input type="number" min="0" value={form.stock_quantity} onChange={(e) => setForm((f) => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock quantity" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
       </div>
+      {/* Image upload */}
+      <div className="space-y-2">
+        <label className="flex items-center justify-center gap-2 border border-dashed border-stone-700 hover:border-orange-600 rounded-sm py-3 cursor-pointer text-stone-400 hover:text-orange-500 text-sm font-semibold">
+          <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+          <Plus size={16} /> {imageFile ? 'Change image' : 'Upload item image'}
+        </label>
+        {imagePreview && (
+          <div className="relative">
+            <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded-sm border border-stone-800" />
+            <button onClick={removeImage} className="absolute top-2 right-2 bg-stone-950/80 text-stone-100 text-xs px-2 py-1 rounded-sm">Remove</button>
+          </div>
+        )}
+        {!imageFile && <p className="text-stone-500 text-xs">Image is optional. JPG, PNG, WEBP up to 5 MB.</p>}
+      </div>
       {/* Save / cancel buttons */}
       <div className="flex gap-2">
-        <button onClick={submit} className="flex-1 bg-orange-600 hover:bg-orange-500 text-stone-950 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm">Save part</button>
-        <button onClick={() => { setOpen(false); setForm(blank); }} className="px-4 border border-stone-700 text-stone-300 text-xs font-bold uppercase tracking-wide rounded-sm">Cancel</button>
+        <button onClick={submit} disabled={saving} className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-stone-950 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Uploading…</> : 'Save part'}
+        </button>
+        <button onClick={() => { setOpen(false); setForm(blank); removeImage(); }} className="px-4 border border-stone-700 text-stone-300 text-xs font-bold uppercase tracking-wide rounded-sm">Cancel</button>
       </div>
     </div>
   );
@@ -2675,7 +2727,7 @@ function OrderDetailView() {
           {(order.items || []).map((item) => (
             <div key={item.id} className="flex items-center gap-3">
               <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-sm h-12 w-12 shrink-0 flex items-center justify-center overflow-hidden">
-                <img src={item.image_url ? `/images/${item.image_url}` : (item.product ? `/images/${CATEGORY_IMAGES[item.product?.category_id] || ''}` : '')} alt={item.product_name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
+                <img src={resolveImageUrl(item.image_url)} alt={item.product_name || 'Product'} className="w-full h-full object-cover" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-stone-100 text-sm font-semibold truncate">{item.product_name || 'Product unavailable'}</p>
@@ -3078,9 +3130,9 @@ export default function App() {
   // and then persists to Django. If the API call fails the local change is
   // kept, which keeps the demo usable offline.
 
-  const addProduct = async (data) => {
+  const addProduct = async (data, imageFile = null) => {
     const tempId = nextId();
-    setProducts((prev) => [...prev, { ...data, product_id: tempId }]);
+    setProducts((prev) => [...prev, { ...data, product_id: tempId, image_url: imageFile ? URL.createObjectURL(imageFile) : '' }]);
     try {
       const created = await api.createProduct({
         shop_id: data.shop_id,
@@ -3090,7 +3142,7 @@ export default function App() {
         compatible_models: data.compatible_models || '',
         price: data.price,
         stock_quantity: data.stock_quantity,
-      });
+      }, imageFile);
       const mapped = mapApiProduct(created);
       setProducts((prev) => prev.map((p) => (p.product_id === tempId ? mapped : p)));
       setApiOnline(true);
