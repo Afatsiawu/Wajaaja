@@ -1651,7 +1651,8 @@ function CheckoutView() {
         placedAt: new Date(),
       });
       showToast('Order placed successfully');
-      await refreshNotifications();
+      const n = await refreshNotifications();
+      if (n === 0) showToast('Order placed, but notifications could not be loaded');
     } catch (e) {
       // Authentication/permission failures must NOT fall back to a local
       // order — the user needs to sign in again.
@@ -2437,10 +2438,18 @@ function AccountView() {
 
 function NotificationsView() {
   const { notifications, refreshNotifications, markNotificationRead, markAllRead } = useApp();
+  const [loading, setLoading] = useState(true);
   // Always pull the latest list when this screen opens, so a freshly
   // placed order's notification shows up even if the post-order refresh
   // was missed (e.g. a slow/cold backend).
-  useEffect(() => { refreshNotifications(); }, []);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      await refreshNotifications();
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
@@ -2450,7 +2459,9 @@ function NotificationsView() {
           <button onClick={markAllRead} className="text-xs font-mono uppercase text-orange-600 hover:text-orange-500">Mark all read</button>
         </div>
       </div>
-      {notifications.length === 0 ? (
+      {loading ? (
+        <p className="text-stone-500 text-sm">Loading notifications…</p>
+      ) : notifications.length === 0 ? (
         <p className="text-stone-500 text-sm">No notifications yet. Place an order or update a listing to see activity here.</p>
       ) : (
         <div className="space-y-2">
@@ -2643,15 +2654,17 @@ export default function App() {
     // Guests have no token and no notifications to fetch.
     if (!getToken()) {
       setNotifications([]);
-      return;
+      return 0;
     }
     try {
       const data = await api.getNotifications();
       const list = unwrap(data);
       console.log('refreshNotifications: loaded', list.length, 'notifications');
       setNotifications(list);
+      return list.length;
     } catch (e) {
       console.warn('Could not load notifications.', e.message);
+      return 0;
     }
   };
 
