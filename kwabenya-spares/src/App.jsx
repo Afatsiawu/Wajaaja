@@ -1618,7 +1618,7 @@ function CheckoutView() {
         placedAt: new Date(),
       });
       showToast('Order placed successfully');
-      refreshNotifications();
+      await refreshNotifications();
     } catch (e) {
       // Authentication/permission failures must NOT fall back to a local
       // order — the user needs to sign in again.
@@ -2614,7 +2614,9 @@ export default function App() {
     }
     try {
       const data = await api.getNotifications();
-      setNotifications(unwrap(data));
+      const list = unwrap(data);
+      console.log('refreshNotifications: loaded', list.length, 'notifications');
+      setNotifications(list);
     } catch (e) {
       console.warn('Could not load notifications.', e.message);
     }
