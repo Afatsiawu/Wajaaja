@@ -180,6 +180,9 @@ class Product(models.Model):
     # are no real product photos yet (the frontend uses category icons instead).
     image_url = models.CharField(max_length=255, blank=True)
     image_public_id = models.CharField(max_length=255, blank=True, default="")
+    is_hidden = models.BooleanField(default=False)
+    moderation_reason = models.TextField(blank=True, default="")
+    is_removed = models.BooleanField(default=False)
     # created_at: matches `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`.
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -231,6 +234,33 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} x {self.product_name or (self.product.part_name if self.product else 'deleted product')}"
+
+
+class Enquiry(models.Model):
+    STATUS_CHOICES = [("OPEN", "Open"), ("CLOSED", "Closed")]
+
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name="enquiries")
+    order = models.ForeignKey(Order, on_delete=models.SET_NULL, null=True, blank=True, related_name="enquiries")
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="enquiries_as_customer")
+    seller = models.ForeignKey(User, on_delete=models.CASCADE, related_name="enquiries_as_seller")
+    subject = models.CharField(max_length=200, blank=True, default="")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="OPEN")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Enquiry #{self.id} ({self.status})"
+
+
+class Message(models.Model):
+    enquiry = models.ForeignKey(Enquiry, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
+    body = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Message #{self.id} by {self.sender.username}"
 
 
 class Review(models.Model):

@@ -129,6 +129,27 @@ export const api = {
 
   // --- admin dashboard ---------------------------------------------------
   getStats: () => request('/stats/'),
+  // enquiries
+  getEnquiries: () => request('/enquiries/'),
+  createEnquiry: (data) => request('/enquiries/', { method: 'POST', body: JSON.stringify(data) }),
+  getEnquiry: (id) => request(`/enquiries/${id}/`),
+  replyEnquiry: (id, body) => request(`/enquiries/${id}/messages/`, { method: 'POST', body: JSON.stringify({ body }) }),
+  markEnquiryRead: (id) => request(`/enquiries/${id}/read/`, { method: 'PATCH' }),
+  closeEnquiry: (id) => request(`/enquiries/${id}/close/`, { method: 'PATCH' }),
+  // admin users
+  getAdminUsers: (params = {}) => request(`/admin/users/?${new URLSearchParams(params)}`),
+  suspendUser: (id) => request(`/admin/users/${id}/suspend/`, { method: 'POST' }),
+  activateUser: (id) => request(`/admin/users/${id}/activate/`, { method: 'POST' }),
+  deleteUser: (id) => request(`/admin/users/${id}/`, { method: 'DELETE' }),
+  // admin products
+  getAdminProducts: (params = {}) => request(`/admin/products/?${new URLSearchParams(params)}`),
+  hideProduct: (id, reason) => request(`/admin/products/${id}/hide/`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  unhideProduct: (id) => request(`/admin/products/${id}/unhide/`, { method: 'POST' }),
+  removeProductAdmin: (id, reason) => request(`/admin/products/${id}/remove/`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  // admin categories
+  createCategory: (name) => request('/admin/categories/', { method: 'POST', body: JSON.stringify({ category_name: name }) }),
+  updateCategory: (id, name) => request(`/admin/categories/${id}/`, { method: 'PATCH', body: JSON.stringify({ category_name: name }) }),
+  deleteCategory: (id) => request(`/admin/categories/${id}/delete/`, { method: 'DELETE' }),
   getAdminSellers: (status) => request(`/admin/sellers/${status ? '?status=' + encodeURIComponent(status) : ''}`),
   approveSeller: (id) => request(`/admin/sellers/${id}/approve/`, { method: 'POST' }),
   rejectSeller: (id, reason) => request(`/admin/sellers/${id}/reject/`, { method: 'POST', body: JSON.stringify({ reason }) }),

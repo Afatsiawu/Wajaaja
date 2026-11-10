@@ -9,6 +9,7 @@ from rest_framework import serializers
 from .models import (
     User, Shop, Mechanic, Category, Product,
     Order, OrderItem, Review, Notification, CartItem,
+    Enquiry, Message,
 )
 
 
@@ -209,3 +210,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         return user
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source="sender.username", read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ["id", "sender", "sender_name", "body", "is_read", "created_at"]
+
+
+class EnquirySerializer(serializers.ModelSerializer):
+    messages = MessageSerializer(many=True, read_only=True)
+    customer_name = serializers.CharField(source="customer.username", read_only=True)
+    seller_name = serializers.CharField(source="seller.username", read_only=True)
+    product_name = serializers.CharField(source="product.part_name", read_only=True, default="")
+
+    class Meta:
+        model = Enquiry
+        fields = [
+            "id", "product", "product_name", "order", "customer", "customer_name",
+            "seller", "seller_name", "subject", "status", "messages", "created_at", "updated_at",
+        ]
+        read_only_fields = ["customer", "seller", "status"]

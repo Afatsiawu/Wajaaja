@@ -101,3 +101,12 @@ class IsAdminRole(BasePermission):
 
     def has_permission(self, request, view):
         return is_admin(request.user)
+
+
+class IsEnquiryParticipant(BasePermission):
+    """Only the enquiry's customer, seller, or an admin can access it."""
+
+    def has_object_permission(self, request, view, obj):
+        if is_admin(request.user):
+            return True
+        return obj.customer_id == request.user.id or obj.seller_id == request.user.id

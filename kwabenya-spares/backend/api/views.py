@@ -24,11 +24,13 @@ class PayloadTooLarge(APIException):
     default_detail = "File too large."
     default_code = "payload_too_large"
 
-from .models import Shop, Mechanic, Category, Product
-from .serializers import ShopSerializer, MechanicSerializer, CategorySerializer, ProductSerializer
+from .models import Shop, Mechanic, Category, Product, Enquiry, Message
+from .serializers import (ShopSerializer, MechanicSerializer, CategorySerializer, ProductSerializer,
+                          EnquirySerializer, MessageSerializer)
 from .permissions import (
     IsAdminOrReadOnly, IsSellerOrAdmin, IsSellerOwnerOrAdmin,
     CanManageMechanic, IsReviewOwnerOrAdmin, IsAdminRole, is_admin,
+    IsEnquiryParticipant,
 )
 
 
@@ -242,6 +244,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not (user.is_authenticated and (user.is_staff or getattr(user, "role", None) in ("SELLER", "ADMIN"))):
             qs = qs.filter(shop__owner__verification_status="APPROVED")
+            qs = qs.filter(is_hidden=False, is_removed=False)
         params = self.request.query_params  # shorthand for the rest of this method
 
         # --- text search across four fields at once ---
@@ -608,3 +611,326 @@ class AdminSellerRejectView(APIView):
             message=f"Your seller account was rejected. {reason}".strip(),
         )
         return Response(UserSerializer(seller).data)
+
+# ---------------------------------------------------------------------------
+# Enquiries
+# ---------------------------------------------------------------------------
+class EnquiryViewSet(viewsets.ModelViewSet):
+    serializer_class = EnquirySerializer
+    queryset = Enquiry.objects.select_related("customer", "seller", "product", "order").prefetch_related("messages__sender").all()
+    permission_classes = [IsAuthenticated, IsEnquiryParticipant]
+    throttle_classes = []  # set per-action below
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not is_admin(user):
+            qs = qs.filter(Q(customer=user) | Q(seller=user))
+        return qs.order_by("-updated_at")
+
+    def create(self, request, *args, **kwargs):
+        # Rate limit enquiry creation.
+        from rest_framework.throttling import ScopedRateThrottle
+        throttle = ScopedRateThrottle()
+        throttle.scope = "enquiry"
+        if not throttle.allow_request(request, self):
+            return Response({"detail": "Too many requests. Please slow down."}, status=429)
+
+        product_id = request.data.get("product")
+        order_id = request.data.get("order")
+        subject = (request.data.get("subject") or "").strip()
+        body = (request.data.get("body") or "").strip()
+        if not body:
+            return Response({"detail": "Message cannot be empty."}, status=400)
+        if len(body) > 2000:
+            return Response({"detail": "Message too long (max 2000 chars)."}, status=400)
+
+        product = None
+        order = None
+        seller = None
+        if product_id:
+            product = Product.objects.select_related("shop__owner").filter(pk=product_id).first()
+            if not product:
+                return Response({"detail": "Product not found."}, status=404)
+            seller = product.shop.owner
+        elif order_id:
+            order = Order.objects.select_related("shop__owner").filter(pk=order_id).first()
+            if not order:
+                return Response({"detail": "Order not found."}, status=404)
+            seller = order.shop.owner
+        else:
+            return Response({"detail": "product or order is required."}, status=400)
+
+        if request.user == seller:
+            return Response({"detail": "You cannot enquire with yourself."}, status=400)
+
+        enquiry = Enquiry.objects.create(
+            product=product, order=order, customer=request.user, seller=seller,
+            subject=subject or (product.part_name if product else f"Order #{order.id}"),
+        )
+        Message.objects.create(enquiry=enquiry, sender=request.user, body=body)
+        Notification.objects.create(
+            user=seller, title="New enquiry",
+            message=f"{request.user.username} sent an enquiry about {enquiry.subject}.",
+        )
+        return Response(EnquirySerializer(enquiry).data, status=201)
+
+    @action(detail=True, methods=["post"], url_path="messages")
+    def post_message(self, request, pk=None):
+        from rest_framework.throttling import ScopedRateThrottle
+        throttle = ScopedRateThrottle()
+        throttle.scope = "enquiry"
+        if not throttle.allow_request(request, self):
+            return Response({"detail": "Too many requests. Please slow down."}, status=429)
+
+        enquiry = self.get_object()
+        body = (request.data.get("body") or "").strip()
+        if not body:
+            return Response({"detail": "Message cannot be empty."}, status=400)
+        if len(body) > 2000:
+            return Response({"detail": "Message too long (max 2000 chars)."}, status=400)
+        if enquiry.status == "CLOSED":
+            return Response({"detail": "This enquiry is closed."}, status=400)
+
+        msg = Message.objects.create(enquiry=enquiry, sender=request.user, body=body)
+        enquiry.updated_at = msg.created_at
+        enquiry.save(update_fields=["updated_at"])
+        # Notify the other party
+        other = enquiry.seller if request.user.id == enquiry.customer_id else enquiry.customer
+        Notification.objects.create(
+            user=other, title="New reply",
+            message=f"{request.user.username} replied to your enquiry about {enquiry.subject}.",
+        )
+        return Response(MessageSerializer(msg).data, status=201)
+
+    @action(detail=True, methods=["patch"], url_path="read")
+    def mark_read(self, request, pk=None):
+        enquiry = self.get_object()
+        enquiry.messages.exclude(sender=request.user).update(is_read=True)
+        return Response({"detail": "ok"})
+
+    @action(detail=True, methods=["patch"], url_path="close")
+    def close(self, request, pk=None):
+        enquiry = self.get_object()
+        if not (is_admin(request.user) or request.user.id in (enquiry.customer_id, enquiry.seller_id)):
+            raise PermissionDenied("Not allowed.")
+        enquiry.status = "CLOSED"
+        enquiry.save(update_fields=["status"])
+        return Response(EnquirySerializer(enquiry).data)
+
+# ---------------------------------------------------------------------------
+# Admin: user management
+# ---------------------------------------------------------------------------
+class AdminUserListView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        q = request.query_params.get("q", "").strip()
+        role = request.query_params.get("role")
+        status_filter = request.query_params.get("status")  # active/suspended
+        qs = User.objects.all().order_by("-date_joined")
+        if q:
+            qs = qs.filter(Q(username__icontains=q) | Q(email__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q))
+        if role:
+            qs = qs.filter(role=role.upper())
+        if status_filter == "active":
+            qs = qs.filter(is_active=True)
+        elif status_filter == "suspended":
+            qs = qs.filter(is_active=False)
+        # pagination
+        page = int(request.query_params.get("page", 1))
+        size = int(request.query_params.get("page_size", 20))
+        start = (page - 1) * size
+        total = qs.count()
+        items = qs[start:start+size]
+        return Response({"count": total, "results": UserSerializer(items, many=True).data})
+
+
+class AdminUserSuspendView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=404)
+        if user.id == request.user.id:
+            return Response({"detail": "You cannot suspend yourself."}, status=400)
+        if user.is_staff and User.objects.filter(is_staff=True, is_active=True).count() <= 1:
+            return Response({"detail": "Cannot suspend the last admin."}, status=400)
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        return Response(UserSerializer(user).data)
+
+
+class AdminUserActivateView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=404)
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+        return Response(UserSerializer(user).data)
+
+
+class AdminUserDeleteView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def delete(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=404)
+        if user.id == request.user.id:
+            return Response({"detail": "You cannot delete yourself."}, status=400)
+        if user.is_staff and User.objects.filter(is_staff=True, is_active=True).count() <= 1:
+            return Response({"detail": "Cannot delete the last admin."}, status=400)
+        # Anonymise instead of hard-delete to preserve order history.
+        user.is_active = False
+        user.username = f"deleted_{user.id}"
+        user.email = ""
+        user.phone_number = f"deleted_{user.id}"
+        user.save(update_fields=["is_active", "username", "email", "phone_number"])
+        # Hide seller's shop and products.
+        if hasattr(user, "shop"):
+            user.shop.is_open_override = False
+            user.shop.save(update_fields=["is_open_override"])
+            Product.objects.filter(shop=user.shop).update(is_hidden=True, moderation_reason="Seller account removed.")
+        return Response(status=204)
+
+
+# ---------------------------------------------------------------------------
+# Admin: product moderation
+# ---------------------------------------------------------------------------
+class AdminProductListView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        q = request.query_params.get("q", "").strip()
+        shop_id = request.query_params.get("shop")
+        status_filter = request.query_params.get("status")  # hidden/removed/active
+        qs = Product.objects.select_related("shop", "category").all().order_by("-created_at")
+        if q:
+            qs = qs.filter(Q(part_name__icontains=q) | Q(description__icontains=q))
+        if shop_id:
+            qs = qs.filter(shop_id=shop_id)
+        if status_filter == "hidden":
+            qs = qs.filter(is_hidden=True)
+        elif status_filter == "removed":
+            qs = qs.filter(is_removed=True)
+        elif status_filter == "active":
+            qs = qs.filter(is_hidden=False, is_removed=False)
+        page = int(request.query_params.get("page", 1))
+        size = int(request.query_params.get("page_size", 20))
+        start = (page - 1) * size
+        total = qs.count()
+        items = qs[start:start+size]
+        from .serializers import ProductSerializer
+        return Response({"count": total, "results": ProductSerializer(items, many=True).data})
+
+
+class AdminProductHideView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(pk=pk).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=404)
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+        product.is_hidden = True
+        product.moderation_reason = reason
+        product.save(update_fields=["is_hidden", "moderation_reason"])
+        if product.shop and product.shop.owner_id:
+            Notification.objects.create(
+                user=product.shop.owner, title="Listing hidden",
+                message=f"Your listing '{product.part_name}' was hidden by an admin. Reason: {reason}",
+            )
+        return Response({"detail": "ok"})
+
+
+class AdminProductUnhideView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(pk=pk).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=404)
+        product.is_hidden = False
+        product.moderation_reason = ""
+        product.save(update_fields=["is_hidden", "moderation_reason"])
+        if product.shop and product.shop.owner_id:
+            Notification.objects.create(
+                user=product.shop.owner, title="Listing restored",
+                message=f"Your listing '{product.part_name}' is visible again.",
+            )
+        return Response({"detail": "ok"})
+
+
+class AdminProductRemoveView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(pk=pk).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=404)
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+        product.is_removed = True
+        product.is_hidden = True
+        product.moderation_reason = reason
+        product.save(update_fields=["is_removed", "is_hidden", "moderation_reason"])
+        if product.shop and product.shop.owner_id:
+            Notification.objects.create(
+                user=product.shop.owner, title="Listing removed",
+                message=f"Your listing '{product.part_name}' was removed by an admin. Reason: {reason}",
+            )
+        return Response({"detail": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# Admin: categories
+# ---------------------------------------------------------------------------
+class AdminCategoryCreateView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request):
+        name = (request.data.get("category_name") or "").strip()
+        if not name:
+            return Response({"detail": "Category name is required."}, status=400)
+        if Category.objects.filter(category_name__iexact=name).exists():
+            return Response({"detail": "A category with that name already exists."}, status=400)
+        cat = Category.objects.create(category_name=name)
+        return Response({"id": cat.id, "category_name": cat.category_name}, status=201)
+
+
+class AdminCategoryUpdateView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def patch(self, request, pk):
+        cat = Category.objects.filter(pk=pk).first()
+        if not cat:
+            return Response({"detail": "Category not found."}, status=404)
+        name = (request.data.get("category_name") or "").strip()
+        if not name:
+            return Response({"detail": "Category name is required."}, status=400)
+        if Category.objects.filter(category_name__iexact=name).exclude(pk=pk).exists():
+            return Response({"detail": "A category with that name already exists."}, status=400)
+        cat.category_name = name
+        cat.save(update_fields=["category_name"])
+        return Response({"id": cat.id, "category_name": cat.category_name})
+
+
+class AdminCategoryDeleteView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def delete(self, request, pk):
+        cat = Category.objects.filter(pk=pk).first()
+        if not cat:
+            return Response({"detail": "Category not found."}, status=404)
+        if Product.objects.filter(category=cat).exists():
+            return Response({"detail": "Cannot delete a category that still has products. Reassign them first."}, status=400)
+        cat.delete()
+        return Response(status=204)

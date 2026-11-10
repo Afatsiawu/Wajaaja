@@ -205,7 +205,7 @@ REST_FRAMEWORK = {
     # Token auth powers /api/auth/login/ and /api/auth/register/. Session
     # auth stays enabled so the Django browsable API and admin remain usable.
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
+        "api.authentication.ActiveTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     # AllowAny keeps the public catalogue readable without an account.
@@ -214,6 +214,9 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        "enquiry": "20/hour",
+    },
 }
 
 # CORS_ALLOWED_ORIGINS: which frontend origins the browser is allowed to

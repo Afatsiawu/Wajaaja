@@ -12,6 +12,10 @@ from .views import (
     OrderViewSet, ReviewViewSet, NotificationViewSet, CartItemViewSet,
     RegisterView, LoginView, LogoutView, MeView, StatsView,
     AdminSellerListView, AdminSellerApproveView, AdminSellerRejectView,
+    EnquiryViewSet,
+    AdminUserListView, AdminUserSuspendView, AdminUserActivateView, AdminUserDeleteView,
+    AdminProductListView, AdminProductHideView, AdminProductUnhideView, AdminProductRemoveView,
+    AdminCategoryCreateView, AdminCategoryUpdateView, AdminCategoryDeleteView,
 )
 
 router = DefaultRouter()
@@ -29,6 +33,7 @@ router.register("orders", OrderViewSet, basename="order")
 router.register("reviews", ReviewViewSet, basename="review")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("cart", CartItemViewSet, basename="cart")
+router.register("enquiries", EnquiryViewSet, basename="enquiry")
 
 # urlpatterns: the actual list Django's URL dispatcher reads. router.urls
 # is already a ready-made list of path() entries, so nothing more needs to
@@ -43,4 +48,15 @@ urlpatterns = [
     path("admin/sellers/", AdminSellerListView.as_view(), name="admin-sellers"),
     path("admin/sellers/<int:pk>/approve/", AdminSellerApproveView.as_view(), name="admin-seller-approve"),
     path("admin/sellers/<int:pk>/reject/", AdminSellerRejectView.as_view(), name="admin-seller-reject"),
+    path("admin/users/", AdminUserListView.as_view(), name="admin-users"),
+    path("admin/users/<int:pk>/suspend/", AdminUserSuspendView.as_view(), name="admin-user-suspend"),
+    path("admin/users/<int:pk>/activate/", AdminUserActivateView.as_view(), name="admin-user-activate"),
+    path("admin/users/<int:pk>/", AdminUserDeleteView.as_view(), name="admin-user-delete"),
+    path("admin/products/", AdminProductListView.as_view(), name="admin-products"),
+    path("admin/products/<int:pk>/hide/", AdminProductHideView.as_view(), name="admin-product-hide"),
+    path("admin/products/<int:pk>/unhide/", AdminProductUnhideView.as_view(), name="admin-product-unhide"),
+    path("admin/products/<int:pk>/remove/", AdminProductRemoveView.as_view(), name="admin-product-remove"),
+    path("admin/categories/", AdminCategoryCreateView.as_view(), name="admin-category-create"),
+    path("admin/categories/<int:pk>/", AdminCategoryUpdateView.as_view(), name="admin-category-update"),
+    path("admin/categories/<int:pk>/delete/", AdminCategoryDeleteView.as_view(), name="admin-category-delete"),
 ] + router.urls

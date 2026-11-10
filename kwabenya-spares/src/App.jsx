@@ -615,6 +615,7 @@ function Header() {
           <nav className="hidden md:flex items-center gap-6 ml-4">
             <button onClick={() => navigate('home')} className={navLinkClass('home')}>Catalog</button>
             <button onClick={() => navigate('shops')} className={navLinkClass('shops')}>Shops</button>
+            {auth?.user && <button onClick={() => navigate('enquiries')} className={navLinkClass('enquiries')}>Enquiries</button>}
             {/* Dashboard link only appears for an authenticated non-rider account */}
             {dashboardView && (
               <button onClick={() => navigate(dashboardView)} className={navLinkClass(dashboardView)}>Dashboard</button>
@@ -716,6 +717,7 @@ function Header() {
                 <button onClick={() => { navigate('home'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Catalog</button>
                 <button onClick={() => { navigate('shops'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Shops</button>
                 <button onClick={() => { navigate('notifications'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Notifications {unreadCount > 0 ? `(${unreadCount})` : ''}</button>
+              {auth?.user && <button onClick={() => { navigate('enquiries'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Enquiries</button>}
                 <button onClick={() => { navigate('account'); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{auth?.user ? `Account (${auth.user.username})` : 'Sign in / Register'}</button>
                 {dashboardView && <button onClick={() => { navigate(dashboardView); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">Dashboard</button>}
                 {auth?.user && (
@@ -1441,6 +1443,12 @@ function ProductDetailView() {
                 <a href={telHref(shop.contact_phone)} className="flex-1 text-center border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide py-2 rounded-sm flex items-center justify-center gap-1.5"><PhoneCall size={13} /> Call shop</a>
               </div>
             </div>
+          )}
+
+          {auth?.user && auth.user.role === 'RIDER' && (
+            <button onClick={async () => { const body = prompt('Your question to the seller:'); if (!body) return; try { const enq = await api.createEnquiry({ product: product.product_id, body }); showToast('Enquiry sent'); navigate('enquiries'); } catch (e) { showToast('Could not send enquiry'); } }} className="w-full border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm">
+              Ask the seller
+            </button>
           )}
 
           {/* Reviews & ratings — fetched from /api/reviews/?product=<id> */}
@@ -2489,6 +2497,15 @@ function AdminDashboardView() {
         <button onClick={() => navigate('adminSellers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
           Seller approvals
         </button>
+        <button onClick={() => navigate('adminUsers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
+          Users
+        </button>
+        <button onClick={() => navigate('adminProducts')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
+          Products
+        </button>
+        <button onClick={() => navigate('adminCategories')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
+          Categories
+        </button>
       </div>
 
       {/* Stat card grid — one card per entry in the `statCards` array above */}
@@ -2964,6 +2981,12 @@ function OrderDetailView() {
         </div>
       </div>
 
+      {auth?.user?.role === 'RIDER' && (
+        <button onClick={async () => { const body = prompt('Your question about this order:'); if (!body) return; try { await api.createEnquiry({ order: order.id, body }); showToast('Enquiry sent'); navigate('enquiries'); } catch (e) { showToast('Could not send enquiry'); } }} className="w-full border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm mb-4">
+          Ask about this order
+        </button>
+      )}
+
       {/* Role-based: contact info + status control for shop owner / admin */}
       {canManage && (
         <div className="bg-stone-900 border border-stone-800 rounded-sm p-4">
@@ -2989,6 +3012,275 @@ function OrderDetailView() {
   );
 }
 
+// EnquiriesView: customer/seller enquiry threads.
+function EnquiriesView() {
+  const { auth, showToast } = useApp();
+  const [enquiries, setEnquiries] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getEnquiries();
+      setEnquiries(Array.isArray(data) ? data : (data?.results ?? []));
+    } catch (e) {
+      showToast('Could not load enquiries');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const openThread = async (id) => {
+    try {
+      const data = await api.getEnquiry(id);
+      setSelected(data);
+      await api.markEnquiryRead(id).catch(() => {});
+    } catch (e) {
+      showToast('Could not open enquiry');
+    }
+  };
+
+  const sendReply = async () => {
+    if (!reply.trim() || !selected) return;
+    setSending(true);
+    try {
+      const msg = await api.replyEnquiry(selected.id, reply.trim());
+      setSelected({ ...selected, messages: [...(selected.messages || []), msg] });
+      setReply('');
+      load();
+    } catch (e) {
+      showToast('Could not send reply');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const closeThread = async () => {
+    if (!selected) return;
+    try { await api.closeEnquiry(selected.id); setSelected({ ...selected, status: 'CLOSED' }); load(); } catch (e) { showToast('Could not close'); }
+  };
+
+  if (selected) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+        <button onClick={() => setSelected(null)} className="flex items-center gap-1.5 text-xs font-mono uppercase text-stone-400 hover:text-orange-500 mb-4"><ArrowLeft size={14} /> Back</button>
+        <SectionLabel eyebrow="Enquiry" title={selected.subject || 'Enquiry'} />
+        <p className="text-stone-500 text-xs mt-1">{selected.product_name ? `Product: ${selected.product_name}` : (selected.order ? `Order #${selected.order}` : '')}</p>
+        <div className="bg-stone-900 border border-stone-800 rounded-sm p-4 mt-4 space-y-3 max-h-96 overflow-y-auto">
+          {(selected.messages || []).map((m) => (
+            <div key={m.id} className={`p-3 rounded-sm ${m.sender === auth?.user?.id ? 'bg-stone-800 ml-8' : 'bg-stone-950 mr-8'}`}>
+              <p className="text-stone-100 text-sm">{m.body}</p>
+              <p className="text-stone-500 text-xs mt-1">{m.sender_name} · {new Date(m.created_at).toLocaleString()}</p>
+            </div>
+          ))}
+        </div>
+        {selected.status === 'OPEN' && (
+          <div className="mt-4 space-y-2">
+            <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={3} placeholder="Type your reply…" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none resize-none" />
+            <div className="flex gap-2">
+              <button onClick={sendReply} disabled={sending || !reply.trim()} className="bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-stone-950 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">{sending ? 'Sending…' : 'Send reply'}</button>
+              <button onClick={closeThread} className="border border-stone-700 text-stone-300 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">Close enquiry</button>
+            </div>
+          </div>
+        )}
+        {selected.status === 'CLOSED' && <p className="text-stone-500 text-xs mt-4">This enquiry is closed.</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Messages" title="Enquiries" />
+      {loading ? <p className="text-stone-400 text-sm mt-4">Loading…</p> : enquiries.length === 0 ? <p className="text-stone-500 text-sm mt-4">No enquiries yet.</p> : (
+        <div className="space-y-2 mt-6">
+          {enquiries.map((e) => (
+            <button key={e.id} onClick={() => openThread(e.id)} className="w-full text-left bg-stone-900 border border-stone-800 rounded-sm p-4 hover:border-orange-600 transition-colors">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-stone-100 text-sm font-semibold">{e.subject || 'Enquiry'}</span>
+                <span className={`text-xs font-mono uppercase px-2 py-1 rounded-sm ${e.status === 'OPEN' ? 'bg-orange-950 text-orange-600' : 'bg-stone-800 text-stone-400'}`}>{e.status}</span>
+              </div>
+              <p className="text-stone-500 text-xs mt-1">{e.product_name || (e.order ? `Order #${e.order}` : '')} · {e.customer_name} → {e.seller_name}</p>
+              <p className="text-stone-400 text-xs mt-1 truncate">{e.messages?.[e.messages.length - 1]?.body || ''}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AdminUsersView: list/search/suspend/activate/delete users.
+function AdminUsersView() {
+  const { showToast } = useApp();
+  const [q, setQ] = useState('');
+  const [role, setRole] = useState('');
+  const [status, setStatus] = useState('');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAdminUsers({ q, role, status });
+      setUsers(data.results || []);
+    } catch (e) { showToast('Could not load users'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [q, role, status]);
+  const suspend = async (id) => { try { await api.suspendUser(id); showToast('Suspended'); load(); } catch (e) { showToast('Failed'); } };
+  const activate = async (id) => { try { await api.activateUser(id); showToast('Activated'); load(); } catch (e) { showToast('Failed'); } };
+  const remove = async (id) => { if (!confirm('Delete this user?')) return; try { await api.deleteUser(id); showToast('Deleted'); load(); } catch (e) { showToast('Failed'); } };
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Admin" title="Users" />
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search users…" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none">
+          <option value="">All roles</option>
+          <option value="RIDER">Rider</option>
+          <option value="SELLER">Seller</option>
+          <option value="MECHANIC">Mechanic</option>
+          <option value="ADMIN">Admin</option>
+        </select>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
+      {loading ? <p className="text-stone-400 text-sm">Loading…</p> : users.length === 0 ? <p className="text-stone-500 text-sm">No users.</p> : (
+        <div className="space-y-2">
+          {users.map((u) => (
+            <div key={u.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-stone-100 text-sm font-semibold">{u.username} <span className="text-stone-500 text-xs">({u.role})</span></p>
+                <p className="text-stone-500 text-xs">{u.email || '—'} · {u.phone_number}</p>
+              </div>
+              <div className="flex gap-2">
+                {u.is_active ? (
+                  <button onClick={() => suspend(u.id)} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Suspend</button>
+                ) : (
+                  <button onClick={() => activate(u.id)} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Activate</button>
+                )}
+                <button onClick={() => remove(u.id)} className="text-xs font-mono uppercase text-stone-400 hover:text-red-400">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AdminProductsView: list/hide/unhide/remove products.
+function AdminProductsView() {
+  const { showToast } = useApp();
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAdminProducts({ q, status });
+      setProducts(data.results || []);
+    } catch (e) { showToast('Could not load products'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [q, status]);
+  const hide = async (id) => { const reason = prompt('Reason for hiding:'); if (!reason) return; try { await api.hideProduct(id, reason); showToast('Hidden'); load(); } catch (e) { showToast('Failed'); } };
+  const unhide = async (id) => { try { await api.unhideProduct(id); showToast('Restored'); load(); } catch (e) { showToast('Failed'); } };
+  const remove = async (id) => { const reason = prompt('Reason for removing:'); if (!reason) return; try { await api.removeProductAdmin(id, reason); showToast('Removed'); load(); } catch (e) { showToast('Failed'); } };
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Admin" title="Products" />
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products…" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="hidden">Hidden</option>
+          <option value="removed">Removed</option>
+        </select>
+      </div>
+      {loading ? <p className="text-stone-400 text-sm">Loading…</p> : products.length === 0 ? <p className="text-stone-500 text-sm">No products.</p> : (
+        <div className="space-y-2">
+          {products.map((p) => (
+            <div key={p.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-stone-100 text-sm font-semibold">{p.part_name}</p>
+                <p className="text-stone-500 text-xs">{p.shop?.shop_name} · {p.is_hidden ? 'Hidden' : p.is_removed ? 'Removed' : 'Active'}</p>
+                {p.moderation_reason && <p className="text-red-400 text-xs mt-1">{p.moderation_reason}</p>}
+              </div>
+              <div className="flex gap-2">
+                {p.is_hidden && !p.is_removed && <button onClick={() => unhide(p.id)} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Unhide</button>}
+                {!p.is_hidden && !p.is_removed && <button onClick={() => hide(p.id)} className="text-xs font-mono uppercase text-orange-400 hover:text-orange-300">Hide</button>}
+                {!p.is_removed && <button onClick={() => remove(p.id)} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Remove</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AdminCategoriesView: create/edit/delete categories.
+function AdminCategoriesView() {
+  const { showToast } = useApp();
+  const [name, setName] = useState('');
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getCategories();
+      setCats(Array.isArray(data) ? data : (data?.results ?? []));
+    } catch (e) { showToast('Could not load categories'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  const create = async () => {
+    if (!name.trim()) return;
+    try { await api.createCategory(name.trim()); showToast('Category created'); setName(''); load(); } catch (e) { showToast('Failed (maybe duplicate)'); }
+  };
+  const rename = async (id, current) => {
+    const newName = prompt('New name:', current);
+    if (!newName || newName.trim() === current) return;
+    try { await api.updateCategory(id, newName.trim()); showToast('Updated'); load(); } catch (e) { showToast('Failed (maybe duplicate)'); }
+  };
+  const remove = async (id) => {
+    if (!confirm('Delete this category?')) return;
+    try { await api.deleteCategory(id); showToast('Deleted'); load(); } catch (e) { showToast('Cannot delete (has products?)'); }
+  };
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Admin" title="Categories" />
+      <div className="flex gap-2 mb-4">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New category name" className="flex-1 bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <button onClick={create} className="bg-orange-600 hover:bg-orange-500 text-stone-950 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">Add</button>
+      </div>
+      {loading ? <p className="text-stone-400 text-sm">Loading…</p> : (
+        <div className="space-y-2">
+          {cats.map((c) => (
+            <div key={c.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center justify-between gap-3">
+              <span className="text-stone-100 text-sm">{c.category_name}</span>
+              <div className="flex gap-2">
+                <button onClick={() => rename(c.id, c.category_name)} className="text-xs font-mono uppercase text-stone-400 hover:text-orange-500">Edit</button>
+                <button onClick={() => remove(c.id)} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // MainContent: the app's "router" — reads the current `view` string out of
 // context and renders whichever top-level view component matches it. Falls
 // back to HomeView for any unrecognized value (shouldn't normally happen,
@@ -3007,6 +3299,10 @@ function MainContent() {
     case 'mechanic': return <AccessGuard allowedRoles={['MECHANIC']}><MechanicDashboardView /></AccessGuard>;
     case 'admin': return <AccessGuard allowedRoles={['ADMIN']}><AdminDashboardView /></AccessGuard>;
     case 'adminSellers': return <AccessGuard allowedRoles={['ADMIN']}><AdminSellerApprovalsView /></AccessGuard>;
+    case 'adminUsers': return <AccessGuard allowedRoles={['ADMIN']}><AdminUsersView /></AccessGuard>;
+    case 'adminProducts': return <AccessGuard allowedRoles={['ADMIN']}><AdminProductsView /></AccessGuard>;
+    case 'adminCategories': return <AccessGuard allowedRoles={['ADMIN']}><AdminCategoriesView /></AccessGuard>;
+    case 'enquiries': return <AccessGuard><EnquiriesView /></AccessGuard>;
     case 'account': return <AccountView />;
     case 'myOrders': return <AccessGuard><MyOrdersView /></AccessGuard>;
     case 'orderDetail': return <AccessGuard><OrderDetailView /></AccessGuard>;
