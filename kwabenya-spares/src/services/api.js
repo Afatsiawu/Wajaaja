@@ -67,6 +67,7 @@ export const api = {
   getShops: (params = {}) => request(`/shops/?${new URLSearchParams(params)}`),
   getShop: (id) => request(`/shops/${id}/`),
   updateShop: (id, patch) => request(`/shops/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  createShop: (data) => request('/shops/', { method: 'POST', body: JSON.stringify(data) }),
 
   getCategories: () => request('/categories/'),
 
@@ -83,7 +84,17 @@ export const api = {
     }
     return request('/products/', { method: 'POST', body: JSON.stringify(data) });
   },
-  updateProduct: (id, patch) => request(`/products/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  updateProduct: (id, patch, imageFile) => {
+    if (imageFile) {
+      const fd = new FormData();
+      Object.entries(patch).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') fd.append(k, v);
+      });
+      fd.append('image', imageFile);
+      return request(`/products/${id}/`, { method: 'PATCH', body: fd });
+    }
+    return request(`/products/${id}/`, { method: 'PATCH', body: JSON.stringify(patch) });
+  },
   deleteProduct: (id) => request(`/products/${id}/`, { method: 'DELETE' }),
 
   toggleMechanicDuty: (id) => request(`/mechanics/${id}/toggle_duty/`, { method: 'PATCH' }),
@@ -118,4 +129,7 @@ export const api = {
 
   // --- admin dashboard ---------------------------------------------------
   getStats: () => request('/stats/'),
+  getAdminSellers: (status) => request(`/admin/sellers/${status ? '?status=' + encodeURIComponent(status) : ''}`),
+  approveSeller: (id) => request(`/admin/sellers/${id}/approve/`, { method: 'POST' }),
+  rejectSeller: (id, reason) => request(`/admin/sellers/${id}/reject/`, { method: 'POST', body: JSON.stringify({ reason }) }),
 };

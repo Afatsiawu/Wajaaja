@@ -38,6 +38,17 @@ class User(AbstractUser):
     # role: matches the schema's `role user_role NOT NULL DEFAULT 'RIDER'`.
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.RIDER)
 
+    # Verification status for seller accounts (pending until an admin approves).
+    class VerificationStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    verification_status = models.CharField(
+        max_length=10, choices=VerificationStatus.choices, default=VerificationStatus.APPROVED
+    )
+    rejection_reason = models.TextField(blank=True, default="")
+
     # __str__: what shows up in the Django admin list view and in debug
     # output — e.g. "kwame_owusu (SELLER)". Falls back to username since
     # this base User model doesn't actually have a `full_name` field (that

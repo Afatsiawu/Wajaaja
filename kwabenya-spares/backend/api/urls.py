@@ -11,6 +11,7 @@ from .views import (
     ShopViewSet, MechanicViewSet, CategoryViewSet, ProductViewSet,
     OrderViewSet, ReviewViewSet, NotificationViewSet, CartItemViewSet,
     RegisterView, LoginView, LogoutView, MeView, StatsView,
+    AdminSellerListView, AdminSellerApproveView, AdminSellerRejectView,
 )
 
 router = DefaultRouter()
@@ -39,4 +40,7 @@ urlpatterns = [
     path("auth/logout/", LogoutView.as_view(), name="auth-logout"),
     path("auth/me/", MeView.as_view(), name="auth-me"),
     path("stats/", StatsView.as_view(), name="stats"),
+    path("admin/sellers/", AdminSellerListView.as_view(), name="admin-sellers"),
+    path("admin/sellers/<int:pk>/approve/", AdminSellerApproveView.as_view(), name="admin-seller-approve"),
+    path("admin/sellers/<int:pk>/reject/", AdminSellerRejectView.as_view(), name="admin-seller-reject"),
 ] + router.urls

@@ -1955,7 +1955,146 @@ function SellerProductRow({ product }) {
       {/* Save button — visually and functionally disabled until something has actually changed */}
       <button onClick={save} disabled={!dirty} className="p-2 text-stone-500 hover:text-green-400 disabled:opacity-30 disabled:hover:text-stone-500"><Save size={15} /></button>
       {/* Delete button — removes this product from state entirely, no confirmation dialog */}
+      <button onClick={() => setEditingProduct(product)} className="p-2 text-stone-500 hover:text-orange-400"><Pencil size={15} /></button>
       <button onClick={() => removeProduct(product.product_id)} className="p-2 text-stone-500 hover:text-red-400"><Trash2 size={15} /></button>
+    </div>
+  );
+}
+
+// CreateShopForm: lets a newly registered seller create their own shop.
+function CreateShopForm() {
+  const { auth, showToast, loadCatalogue, setCurrentShopId, navigate } = useApp();
+  const [form, setForm] = useState({ shop_name: '', landmark_address: '', opening_time: '07:00', closing_time: '19:00', latitude: '', longitude: '' });
+  const [saving, setSaving] = useState(false);
+  const useLocation = () => {
+    if (!navigator.geolocation) { showToast('Geolocation not supported'); return; }
+    navigator.geolocation.getCurrentPosition((pos) => {
+      setForm((f) => ({ ...f, latitude: pos.coords.latitude.toFixed(6), longitude: pos.coords.longitude.toFixed(6) }));
+    }, () => showToast('Could not get location'));
+  };
+  const submit = async () => {
+    if (!form.shop_name.trim() || !form.landmark_address.trim()) { showToast('Shop name and address are required'); return; }
+    setSaving(true);
+    try {
+      const created = await api.createShop({
+        shop_name: form.shop_name,
+        landmark_address: form.landmark_address,
+        opening_time: form.opening_time,
+        closing_time: form.closing_time,
+        latitude: Number(form.latitude) || 0,
+        longitude: Number(form.longitude) || 0,
+      });
+      showToast('Shop created');
+      setCurrentShopId(created.id);
+      await loadCatalogue();
+    } catch (e) {
+      showToast('Could not create shop');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
+      <h1 className="font-display text-3xl tracking-wide text-stone-100 mb-4">Create your shop</h1>
+      <div className="bg-stone-900 border border-stone-800 rounded-sm p-4 space-y-3">
+        <input value={form.shop_name} onChange={(e) => setForm((f) => ({ ...f, shop_name: e.target.value }))} placeholder="Shop name" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <input value={form.landmark_address} onChange={(e) => setForm((f) => ({ ...f, landmark_address: e.target.value }))} placeholder="Landmark / address" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs font-mono text-stone-500">Opens <input type="time" value={form.opening_time} onChange={(e) => setForm((f) => ({ ...f, opening_time: e.target.value }))} className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none mt-1" /></label>
+          <label className="text-xs font-mono text-stone-500">Closes <input type="time" value={form.closing_time} onChange={(e) => setForm((f) => ({ ...f, closing_time: e.target.value }))} className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none mt-1" /></label>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <input type="number" step="0.000001" value={form.latitude} onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))} placeholder="Latitude" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+          <input type="number" step="0.000001" value={form.longitude} onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))} placeholder="Longitude" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        </div>
+        <button onClick={useLocation} className="text-xs font-mono uppercase text-orange-600 hover:text-orange-500">Use my location</button>
+        <button onClick={submit} disabled={saving} className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-stone-950 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Creating…</> : 'Create shop'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ProductEditForm: edit an existing product's details and image.
+function ProductEditForm({ product, shopId, onClose }) {
+  const { updateProduct, showToast } = useApp();
+  const [form, setForm] = useState({
+    part_name: product.part_name,
+    category_id: product.category_id,
+    compatible_models: product.compatible_models,
+    description: product.description,
+    price: product.price,
+    stock_quantity: product.stock_quantity,
+  });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(product.image_url ? (product.image_url.startsWith('http') ? product.image_url : `/images/${product.image_url}`) : null);
+  const [saving, setSaving] = useState(false);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showToast('Only image files (JPG, PNG, WEBP) are allowed'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5 MB'); return; }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await updateProduct(product.product_id, {
+        part_name: form.part_name,
+        category_id: Number(form.category_id),
+        compatible_models: form.compatible_models,
+        description: form.description,
+        price: Number(form.price),
+        stock_quantity: Number(form.stock_quantity) || 0,
+      }, imageFile);
+      showToast('Product updated');
+      onClose();
+    } catch (e) {
+      showToast('Could not update product');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-stone-900 border border-stone-800 rounded-sm p-4 space-y-3 mb-6">
+      <div className="flex items-center justify-between">
+        <p className="font-mono text-xs tracking-widest text-stone-500 uppercase">Edit product</p>
+        <button onClick={onClose} className="text-stone-400 hover:text-stone-100"><X size={16} /></button>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <input value={form.part_name} onChange={(e) => setForm((f) => ({ ...f, part_name: e.target.value }))} placeholder="Part name" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <select value={form.category_id} onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))} className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 outline-none">
+          {CATEGORIES.map((c) => <option key={c.category_id} value={c.category_id} className="bg-stone-950">{c.category_name}</option>)}
+        </select>
+      </div>
+      <input value={form.compatible_models} onChange={(e) => setForm((f) => ({ ...f, compatible_models: e.target.value }))} placeholder="Compatible models" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+      <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Short description" rows={2} className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none resize-none" />
+      <div className="grid grid-cols-2 gap-3">
+        <input type="number" min="0" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} placeholder="Price (GH₵)" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+        <input type="number" min="0" value={form.stock_quantity} onChange={(e) => setForm((f) => ({ ...f, stock_quantity: e.target.value }))} placeholder="Stock quantity" className="bg-stone-800 border border-stone-800 rounded-sm px-3 py-2 text-sm text-stone-100 placeholder-stone-600 outline-none" />
+      </div>
+      <div className="space-y-2">
+        <label className="flex items-center justify-center gap-2 border border-dashed border-stone-700 hover:border-orange-600 rounded-sm py-3 cursor-pointer text-stone-400 hover:text-orange-500 text-sm font-semibold">
+          <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+          <Plus size={16} /> {imageFile ? 'Change image' : 'Upload new image'}
+        </label>
+        {imagePreview && (
+          <div className="relative">
+            <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded-sm border border-stone-800" />
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <button onClick={submit} disabled={saving} className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-stone-950 font-bold text-xs uppercase tracking-wide py-2.5 rounded-sm flex items-center justify-center gap-2">
+          {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : 'Save changes'}
+        </button>
+        <button onClick={onClose} className="px-4 border border-stone-700 text-stone-300 text-xs font-bold uppercase tracking-wide rounded-sm">Cancel</button>
+      </div>
     </div>
   );
 }
@@ -1975,6 +2114,7 @@ function SellerDashboardView() {
   const myProducts = products.filter((p) => p.shop_id === shop.shop_id); // only this shop's own listings
   const lowStock = myProducts.filter((p) => p.stock_quantity <= 5).length; // count of parts at/under the low-stock threshold
   const [orders, setOrders] = useState([]);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [shopForm, setShopForm] = useState({
     shop_name: shop.shop_name,
     landmark_address: shop.landmark_address,
@@ -2029,17 +2169,9 @@ function SellerDashboardView() {
     }
   };
 
-  // A newly registered seller has no shop yet. Show a clear next step rather
-  // than letting them edit (and be rejected from) someone else's shop.
+  // A newly registered seller has no shop yet. Let them create one.
   if (auth?.user?.role === 'SELLER' && availableShops.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-20 text-center">
-        <AlertCircle size={32} className="mx-auto text-orange-600 mb-3" />
-        <p className="text-stone-200 text-sm mb-1">No shop linked to this seller account</p>
-        <p className="text-stone-500 text-xs mb-5">Ask a platform admin to create your shop profile, then sign in again.</p>
-        <button onClick={() => navigate('home')} className="border border-stone-700 hover:border-orange-600 text-stone-100 font-bold text-xs uppercase tracking-wide px-4 py-2.5 rounded-sm">Back to catalog</button>
-      </div>
-    );
+    return <CreateShopForm />;
   }
 
   return (
@@ -2049,6 +2181,13 @@ function SellerDashboardView() {
         <LayoutDashboard size={18} className="text-orange-600" />
         <span className="font-mono text-xs tracking-widest text-stone-500 uppercase">Seller dashboard · {auth?.user?.username}</span>
       </div>
+      {/* Verification status banner */}
+      {auth?.user?.role === 'SELLER' && auth.user.verification_status !== 'APPROVED' && (
+        <div className="bg-orange-950 border border-orange-800 rounded-sm p-3 mb-4 text-sm">
+          <p className="text-orange-600 font-bold">Seller account {auth.user.verification_status.toLowerCase()}</p>
+          <p className="text-stone-300 text-xs mt-1">{auth.user.verification_status === 'PENDING' ? 'Your account is awaiting admin approval. You can create your shop but cannot publish products yet.' : (auth.user.rejection_reason || 'Your account was rejected.')}</p>
+        </div>
+      )}
       {/* Shop name heading. Admins can switch shops; sellers only see their own. */}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <h1 className="font-display text-3xl sm:text-4xl tracking-wide text-stone-100">{shop.shop_name}</h1>
@@ -2158,6 +2297,9 @@ function SellerDashboardView() {
         ))}
       </div>
 
+      {editingProduct && (
+        <ProductEditForm product={editingProduct} shopId={shop.shop_id} onClose={() => setEditingProduct(null)} />
+      )}
       {/* Editable inventory list */}
       <SectionLabel eyebrow="Inventory" title="Your listings" />
       <div className="space-y-2 mb-4">
@@ -2236,6 +2378,65 @@ function MechanicDashboardView() {
 // stat cards plus a table listing every shop with its live status and
 // assigned fitter. Nothing on this screen is editable; it's purely for
 // visibility into the whole platform at a glance.
+// AdminSellerApprovalsView: approve or deny pending seller accounts.
+function AdminSellerApprovalsView() {
+  const { showToast } = useApp();
+  const [status, setStatus] = useState('PENDING');
+  const [sellers, setSellers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAdminSellers(status);
+      setSellers(Array.isArray(data) ? data : (data?.results ?? []));
+    } catch (e) {
+      showToast('Could not load sellers');
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, [status]);
+  const approve = async (id) => {
+    try { await api.approveSeller(id); showToast('Seller approved'); load(); } catch (e) { showToast('Could not approve'); }
+  };
+  const reject = async (id) => {
+    const reason = prompt('Rejection reason (optional):') || '';
+    try { await api.rejectSeller(id, reason); showToast('Seller rejected'); load(); } catch (e) { showToast('Could not reject'); }
+  };
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Admin" title="Seller approvals" />
+      <div className="flex gap-2 mb-4">
+        {['PENDING','APPROVED','REJECTED'].map((s) => (
+          <button key={s} onClick={() => setStatus(s)} className={`text-xs font-mono uppercase px-3 py-1.5 rounded-sm border ${status === s ? 'border-orange-600 text-orange-600' : 'border-stone-700 text-stone-400'}`}>{s}</button>
+        ))}
+      </div>
+      {loading ? <p className="text-stone-400 text-sm">Loading…</p> : sellers.length === 0 ? <p className="text-stone-500 text-sm">No sellers.</p> : (
+        <div className="space-y-2">
+          {sellers.map((s) => (
+            <div key={s.id} className="bg-stone-900 border border-stone-800 rounded-sm p-4 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-stone-100 text-sm font-semibold">{s.username}</p>
+                <p className="text-stone-500 text-xs">{s.first_name} {s.last_name} · {s.email} · {s.phone_number}</p>
+                {s.rejection_reason && <p className="text-red-400 text-xs mt-1">{s.rejection_reason}</p>}
+              </div>
+              <div className="flex gap-2">
+                {s.verification_status === 'PENDING' && (
+                  <>
+                    <button onClick={() => approve(s.id)} className="bg-green-600 hover:bg-green-500 text-stone-950 font-bold text-xs uppercase px-3 py-1.5 rounded-sm">Approve</button>
+                    <button onClick={() => reject(s.id)} className="bg-red-600 hover:bg-red-500 text-stone-950 font-bold text-xs uppercase px-3 py-1.5 rounded-sm">Deny</button>
+                  </>
+                )}
+                <span className={`text-xs font-mono uppercase px-2 py-1 rounded-sm ${s.verification_status === 'APPROVED' ? 'bg-green-950 text-green-400' : s.verification_status === 'REJECTED' ? 'bg-red-950 text-red-400' : 'bg-stone-800 text-stone-300'}`}>{s.verification_status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboardView() {
   const { shops, products, stats, auth } = useApp();
   const [orders, setOrders] = useState([]);
@@ -2282,6 +2483,9 @@ function AdminDashboardView() {
         <a href={(import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api').replace(/\/api\/?$/, '/admin/')} target="_blank" rel="noreferrer" className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
           Manage users &amp; data (Django admin)
         </a>
+        <button onClick={() => navigate('adminSellers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
+          Seller approvals
+        </button>
       </div>
 
       {/* Stat card grid — one card per entry in the `statCards` array above */}
@@ -2799,6 +3003,7 @@ function MainContent() {
     case 'seller': return <AccessGuard allowedRoles={['SELLER']}><SellerDashboardView /></AccessGuard>;
     case 'mechanic': return <AccessGuard allowedRoles={['MECHANIC']}><MechanicDashboardView /></AccessGuard>;
     case 'admin': return <AccessGuard allowedRoles={['ADMIN']}><AdminDashboardView /></AccessGuard>;
+    case 'adminSellers': return <AccessGuard allowedRoles={['ADMIN']}><AdminSellerApprovalsView /></AccessGuard>;
     case 'account': return <AccountView />;
     case 'myOrders': return <AccessGuard><MyOrdersView /></AccessGuard>;
     case 'orderDetail': return <AccessGuard><OrderDetailView /></AccessGuard>;
@@ -3151,10 +3356,10 @@ export default function App() {
     }
   };
 
-  const updateProduct = async (id, patch) => {
+  const updateProduct = async (id, patch, imageFile = null) => {
     setProducts((prev) => prev.map((p) => (p.product_id === id ? { ...p, ...patch } : p)));
     try {
-      await api.updateProduct(id, patch);
+      await api.updateProduct(id, patch, imageFile);
       setApiOnline(true);
     } catch (e) {
       console.warn('Could not update product on API.', e.message);

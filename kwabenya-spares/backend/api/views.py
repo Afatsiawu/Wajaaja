@@ -157,6 +157,8 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if not is_admin(self.request.user):
+            if getattr(self.request.user, "verification_status", "APPROVED") != "APPROVED":
+                raise PermissionDenied("Your seller account is pending approval. You cannot publish products yet.")
             shop = serializer.validated_data.get("shop")
             if not shop or shop.owner_id != self.request.user.id:
                 raise PermissionDenied("You can only list products for your own shop.")
@@ -537,3 +539,50 @@ class StatsView(APIView):
             "revenue": float(revenue),
             "orders_by_status": list(Order.objects.values("status").annotate(count=Count("id"))),
         })
+# ---------------------------------------------------------------------------
+# Seller verification (admin)
+# ---------------------------------------------------------------------------
+class AdminSellerListView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def get(self, request):
+        status_filter = request.query_params.get("status")
+        qs = User.objects.filter(role=User.Role.SELLER)
+        if status_filter:
+            qs = qs.filter(verification_status=status_filter.upper())
+        return Response(UserSerializer(qs.order_by("-date_joined"), many=True).data)
+
+
+class AdminSellerApproveView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        seller = User.objects.filter(pk=pk, role=User.Role.SELLER).first()
+        if not seller:
+            return Response({"detail": "Seller not found."}, status=404)
+        seller.verification_status = User.VerificationStatus.APPROVED
+        seller.rejection_reason = ""
+        seller.save(update_fields=["verification_status", "rejection_reason"])
+        Notification.objects.create(
+            user=seller, title="Seller account approved",
+            message="Your seller account has been approved. You can now publish products.",
+        )
+        return Response(UserSerializer(seller).data)
+
+
+class AdminSellerRejectView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        seller = User.objects.filter(pk=pk, role=User.Role.SELLER).first()
+        if not seller:
+            return Response({"detail": "Seller not found."}, status=404)
+        reason = request.data.get("reason", "")
+        seller.verification_status = User.VerificationStatus.REJECTED
+        seller.rejection_reason = reason
+        seller.save(update_fields=["verification_status", "rejection_reason"])
+        Notification.objects.create(
+            user=seller, title="Seller account rejected",
+            message=f"Your seller account was rejected. {reason}".strip(),
+        )
+        return Response(UserSerializer(seller).data)

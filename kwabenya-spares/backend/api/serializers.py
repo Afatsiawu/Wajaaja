@@ -112,7 +112,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         # Deliberately excludes password/is_staff/etc — only the fields
         # that are safe and useful to expose over the API.
-        fields = ["id", "username", "first_name", "last_name", "email", "phone_number", "role"]
+        fields = ["id", "username", "first_name", "last_name", "email", "phone_number", "role", "verification_status", "rejection_reason"]
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -197,6 +197,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         name = validated_data.pop("name", "")
         password = validated_data.pop("password")
+        role = validated_data.get("role", User.Role.RIDER)
+        # New sellers start pending until an admin approves them.
+        if role == User.Role.SELLER and "verification_status" not in validated_data:
+            validated_data["verification_status"] = User.VerificationStatus.PENDING
         user = User(**validated_data)
         if name:
             parts = name.split(" ", 1)
