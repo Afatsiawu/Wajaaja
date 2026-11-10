@@ -78,6 +78,9 @@ class ShopViewSet(viewsets.ModelViewSet):
     # query-string parameters described in the docstring above.
     def get_queryset(self):
         qs = super().get_queryset()  # start from the base queryset (with the select_related/prefetch_related already applied)
+        user = self.request.user
+        if not (user.is_authenticated and (user.is_staff or getattr(user, "role", None) in ("SELLER", "ADMIN"))):
+            qs = qs.filter(owner__verification_status="APPROVED")
         q = self.request.query_params.get("q")  # read ?q=... from the URL, if present
         if q:
             # Case-insensitive match against EITHER the shop name OR the
@@ -100,6 +103,13 @@ class MechanicViewSet(viewsets.ModelViewSet):
     # Sellers manage their own shop's mechanics; a mechanic may toggle their
     # own duty status; admins can manage any.
     permission_classes = [CanManageMechanic]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not (user.is_authenticated and (user.is_staff or getattr(user, "role", None) in ("SELLER", "ADMIN"))):
+            qs = qs.filter(shop__owner__verification_status="APPROVED")
+        return qs
 
     def perform_create(self, serializer):
         if not is_admin(self.request.user):
@@ -208,16 +218,17 @@ class ProductViewSet(viewsets.ModelViewSet):
             from django.conf import settings as dj_settings
             if not (dj_settings.CLOUDINARY_CLOUD_NAME and dj_settings.CLOUDINARY_API_KEY and dj_settings.CLOUDINARY_API_SECRET):
                 raise ValidationError({"image": "Image upload is not configured on the server."})
-            if image_public_id:
-                try:
-                    import cloudinary.uploader
-                    cloudinary.uploader.destroy(image_public_id)
-                except Exception:
-                    pass
             import cloudinary.uploader
             result = cloudinary.uploader.upload(image, folder="kwabenya-spares/products")
             image_url = result.get("secure_url", "")
             image_public_id = result.get("public_id", "")
+            # Delete the old image only after the new upload succeeded.
+            old_public_id = serializer.instance.image_public_id
+            if old_public_id and old_public_id != image_public_id:
+                try:
+                    cloudinary.uploader.destroy(old_public_id)
+                except Exception:
+                    pass
 
         serializer.save(image_url=image_url, image_public_id=image_public_id)
 
@@ -228,6 +239,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     # array methods.
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        if not (user.is_authenticated and (user.is_staff or getattr(user, "role", None) in ("SELLER", "ADMIN"))):
+            qs = qs.filter(shop__owner__verification_status="APPROVED")
         params = self.request.query_params  # shorthand for the rest of this method
 
         # --- text search across four fields at once ---
@@ -560,6 +574,9 @@ class AdminSellerApproveView(APIView):
         seller = User.objects.filter(pk=pk, role=User.Role.SELLER).first()
         if not seller:
             return Response({"detail": "Seller not found."}, status=404)
+        # Idempotent: no duplicate notification if already approved.
+        if seller.verification_status == User.VerificationStatus.APPROVED:
+            return Response(UserSerializer(seller).data)
         seller.verification_status = User.VerificationStatus.APPROVED
         seller.rejection_reason = ""
         seller.save(update_fields=["verification_status", "rejection_reason"])
@@ -577,7 +594,12 @@ class AdminSellerRejectView(APIView):
         seller = User.objects.filter(pk=pk, role=User.Role.SELLER).first()
         if not seller:
             return Response({"detail": "Seller not found."}, status=404)
-        reason = request.data.get("reason", "")
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "A rejection reason is required."}, status=400)
+        # Idempotent: no duplicate notification if already rejected with same reason.
+        if seller.verification_status == User.VerificationStatus.REJECTED and seller.rejection_reason == reason:
+            return Response(UserSerializer(seller).data)
         seller.verification_status = User.VerificationStatus.REJECTED
         seller.rejection_reason = reason
         seller.save(update_fields=["verification_status", "rejection_reason"])

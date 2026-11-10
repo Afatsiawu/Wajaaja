@@ -2400,8 +2400,11 @@ function AdminSellerApprovalsView() {
     try { await api.approveSeller(id); showToast('Seller approved'); load(); } catch (e) { showToast('Could not approve'); }
   };
   const reject = async (id) => {
-    const reason = prompt('Rejection reason (optional):') || '';
-    try { await api.rejectSeller(id, reason); showToast('Seller rejected'); load(); } catch (e) { showToast('Could not reject'); }
+    const reason = prompt('Rejection reason (required):');
+    if (reason === null) return; // cancelled
+    const trimmed = reason.trim();
+    if (!trimmed) { showToast('A rejection reason is required'); return; }
+    try { await api.rejectSeller(id, trimmed); showToast('Seller rejected'); load(); } catch (e) { showToast('Could not reject'); }
   };
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
