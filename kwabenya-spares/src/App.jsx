@@ -542,9 +542,8 @@ function RouteTicker() {
    HEADER
    ============================================================ */
 
-// ROLE_LABELS: human-readable label shown in the role-switcher dropdown for
-// each internal role code. This is a DEMO login switcher, not real
-// authentication — see the note on the `role` state in App() further down.
+// ROLE_LABELS: human-readable label for each role code, shown in the
+// read-only role badge in the header.
 const ROLE_LABELS = { RIDER: 'Rider', SELLER: 'Shop owner', MECHANIC: 'Fitter', ADMIN: 'Admin' };
 // ROLE_VIEW: which dashboard `view` name each non-rider role should jump to
 // when selected (riders have no dashboard, so RIDER isn't listed here).
@@ -1748,7 +1747,7 @@ function CheckoutView() {
             <label className="text-xs font-mono uppercase text-stone-500 block mb-1">{form.payment === 'MTN_MOMO' ? 'MTN MoMo number' : 'Telecel Cash number'}</label>
             <input value={form.momoNumber} onChange={(e) => update('momoNumber', e.target.value)} placeholder="024 000 0000" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2.5 text-sm text-stone-100 placeholder-stone-600 outline-none focus:border-orange-600" />
             {errors.momoNumber && <p className="text-red-400 text-xs mt-1 flex items-center gap-1"><AlertCircle size={11} /> {errors.momoNumber}</p>}
-            <p className="text-stone-600 text-xs mt-1.5">Demo checkout — this simulates a payment prompt and does not move real money.</p>
+            <p className="text-stone-600 text-xs mt-1.5">Checkout is simulated - no real money is charged.</p>
           </div>
         )}
 
@@ -2689,7 +2688,7 @@ function AccountView() {
           <>
             <input value={loginForm.username} onChange={(e) => setLoginForm((f) => ({ ...f, username: e.target.value }))} placeholder="Username" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2.5 text-sm text-stone-100 placeholder-stone-600 outline-none focus:border-orange-600" />
             <input type="password" value={loginForm.password} onChange={(e) => setLoginForm((f) => ({ ...f, password: e.target.value }))} placeholder="Password" className="w-full bg-stone-800 border border-stone-800 rounded-sm px-3 py-2.5 text-sm text-stone-100 placeholder-stone-600 outline-none focus:border-orange-600" />
-            <p className="text-stone-600 text-xs">Demo accounts: rider_demo / seller usernames / admin_demo — password demo-password-123</p>
+            <p className="text-stone-600 text-xs">Use your registered account to sign in.</p>
             <button onClick={submitLogin} disabled={busy} className="w-full bg-orange-600 hover:bg-orange-500 disabled:opacity-60 text-stone-950 font-bold text-sm uppercase tracking-wide py-3 rounded-sm">
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
@@ -2797,9 +2796,9 @@ function Footer() {
             <button onClick={() => navigate('shops')} className="text-left hover:text-orange-500 w-fit">All shops</button>
           </div>
         </div>
-        {/* Column 3: honesty note about the demo/mock nature of the build */}
+        {/* Column 3: note about the build */}
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-stone-600 mb-2">Demo build</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-stone-600 mb-2">About</p>
           <p className="text-stone-500 text-xs leading-relaxed">Catalogue, accounts, orders, reviews and notifications are backed by the Django REST API. MoMo / Telecel Cash checkout is simulated — no real money is charged.</p>
         </div>
       </div>
