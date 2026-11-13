@@ -638,14 +638,15 @@ function Header() {
 
           {/* Right-hand icon cluster: role badge, notifications, account, cart, menu */}
           <div className="flex items-center gap-2 ml-auto">
-            {/* Read-only role badge — role comes from the signed-in account,
-                never from a user-selectable switcher. */}
-            <span
-              className="hidden sm:flex items-center bg-stone-800 border border-stone-800 text-stone-300 text-xs font-mono rounded-sm px-2 py-2"
-              title="Your role is set by the account you signed in with"
-            >
-              Viewing as: {auth?.user ? ROLE_LABELS[signedInRole] : 'Rider (guest)'}
-            </span>
+            {/* Read-only role badge — shown only when signed in */}
+            {auth?.user && (
+              <span
+                className="hidden sm:flex items-center bg-stone-800 border border-stone-800 text-stone-300 text-xs font-mono rounded-sm px-2 py-2"
+                title="Your role is set by the account you signed in with"
+              >
+                {ROLE_LABELS[signedInRole]}
+              </span>
+            )}
 
             {/* Notifications bell — shows unread activity from orders/reviews */}
             <button onClick={() => navigate('notifications')} className="relative p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-stone-800 hover:bg-stone-700 rounded-sm border border-stone-800 transition-colors" title="Notifications">
@@ -724,7 +725,7 @@ function Header() {
                 )}
               </div>
               <button onClick={() => { toggleTheme(); setMobileOpen(false); }} className="text-left py-2 text-sm font-semibold text-stone-300">{theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}</button>
-              <p className="text-xs font-mono text-stone-500 uppercase tracking-widest">Viewing as: {auth?.user ? ROLE_LABELS[signedInRole] : 'Rider (guest)'}</p>
+              {auth?.user && <p className="text-xs font-mono text-stone-500 uppercase tracking-widest">{ROLE_LABELS[signedInRole]}</p>}
             </div>
           </div>
         )}
