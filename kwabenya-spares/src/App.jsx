@@ -622,7 +622,7 @@ function Header() {
           </nav>
 
           {/* Desktop search box — also hidden on mobile, which gets its own copy inside the hamburger menu below */}
-          <div className="hidden md:flex flex-1 max-w-md ml-4">
+          <div className="hidden md:flex flex-1 max-w-md ml-2">
             <div className="flex items-center w-full bg-stone-800 border border-stone-800 rounded-sm focus-within:border-orange-600 transition-colors">
               <Search size={16} className="ml-3 text-stone-500 shrink-0" />
               <input
@@ -637,7 +637,7 @@ function Header() {
           </div>
 
           {/* Right-hand icon cluster: role badge, notifications, account, cart, menu */}
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex items-center gap-2 ml-2">
             {/* Read-only role badge — shown only when signed in */}
             {auth?.user && (
               <span
@@ -1287,8 +1287,11 @@ function AccessDenied({ requiredRole }) {
 // AccessGuard: the route-level gate used by MainContent. It checks the
 // authenticated account's role — never a client-side toggle.
 function AccessGuard({ allowedRoles, children }) {
-  const { auth } = useApp();
-  if (!auth?.user) return <SignInRequired label="Sign in to access this area" />;
+  const { auth, view } = useApp();
+  if (!auth?.user) {
+    if (view && view !== 'home' && view !== 'account') localStorage.setItem('kwabenya_return_to', view);
+    return <SignInRequired label="Sign in to access this area" />;
+  }
   if (allowedRoles && !allowedRoles.includes(auth.user.role)) {
     return <AccessDenied requiredRole={allowedRoles.map((r) => ROLE_LABELS[r] || r).join(' or ')} />;
   }
@@ -3474,6 +3477,10 @@ export default function App() {
     setAuth(next);
     localStorage.setItem('kwabenya_auth', JSON.stringify(next));
     setSessionReady(true);
+    // Return to the page the user was trying to reach before signing in.
+    const returnTo = localStorage.getItem('kwabenya_return_to');
+    localStorage.removeItem('kwabenya_return_to');
+    if (returnTo) navigate(returnTo);
   };
 
   const login = async (credentials) => {
