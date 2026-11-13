@@ -2799,7 +2799,7 @@ function Footer() {
         {/* Column 3: note about the build */}
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-stone-600 mb-2">About</p>
-          <p className="text-stone-500 text-xs leading-relaxed">Catalogue, accounts, orders, reviews and notifications are backed by the Django REST API. MoMo / Telecel Cash checkout is simulated — no real money is charged.</p>
+          <p className="text-stone-500 text-xs leading-relaxed">Kwabenya Spares connects motorcycle spare parts shops, their assigned fitters, and riders across Kwabenya, Accra. Catalogue, accounts, orders, reviews, and notifications are backed by the Django REST API. MoMo / Telecel Cash checkout is simulated — no real money is charged.</p>
         </div>
       </div>
     </footer>
