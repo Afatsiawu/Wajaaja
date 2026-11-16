@@ -2503,10 +2503,7 @@ function AdminDashboardView() {
           Manage users &amp; data (Django admin)
         </a>
         <button onClick={() => navigate('adminProductApprovals')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
-          Product approvals
-        </button>
-        <button onClick={() => navigate('adminSellers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
-          Seller accounts
+          Seller approvals
         </button>
         <button onClick={() => navigate('adminUsers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
           Users
