@@ -2457,7 +2457,7 @@ function AdminSellerApprovalsView() {
 }
 
 function AdminDashboardView() {
-  const { shops, products, stats, auth } = useApp();
+  const { shops, products, stats, auth, navigate } = useApp();
   const [orders, setOrders] = useState([]);
   // Pre-compute every number the stat cards need.
   const openCount = shops.filter((s) => isShopOpenNow(s)).length;
