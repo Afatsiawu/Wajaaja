@@ -104,7 +104,8 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             "id", "shop", "shop_id", "category", "category_id", "part_name", "description",
-            "compatible_models", "price", "stock_quantity", "image_url", "created_at",
+            "compatible_models", "price", "stock_quantity", "image_url",
+            "approval_status", "decline_reason", "is_hidden", "created_at",
         ]
 
 

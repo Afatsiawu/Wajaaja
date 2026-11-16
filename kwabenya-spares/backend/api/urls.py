@@ -15,6 +15,7 @@ from .views import (
     EnquiryViewSet,
     AdminUserListView, AdminUserSuspendView, AdminUserActivateView, AdminUserDeleteView,
     AdminProductListView, AdminProductHideView, AdminProductUnhideView, AdminProductRemoveView,
+    AdminProductApproveView, AdminProductDeclineView,
     AdminCategoryCreateView, AdminCategoryUpdateView, AdminCategoryDeleteView,
 )
 
@@ -56,6 +57,8 @@ urlpatterns = [
     path("admin/products/<int:pk>/hide/", AdminProductHideView.as_view(), name="admin-product-hide"),
     path("admin/products/<int:pk>/unhide/", AdminProductUnhideView.as_view(), name="admin-product-unhide"),
     path("admin/products/<int:pk>/remove/", AdminProductRemoveView.as_view(), name="admin-product-remove"),
+    path("admin/products/<int:pk>/approve/", AdminProductApproveView.as_view(), name="admin-product-approve"),
+    path("admin/products/<int:pk>/decline/", AdminProductDeclineView.as_view(), name="admin-product-decline"),
     path("admin/categories/", AdminCategoryCreateView.as_view(), name="admin-category-create"),
     path("admin/categories/<int:pk>/", AdminCategoryUpdateView.as_view(), name="admin-category-update"),
     path("admin/categories/<int:pk>/delete/", AdminCategoryDeleteView.as_view(), name="admin-category-delete"),

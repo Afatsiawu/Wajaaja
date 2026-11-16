@@ -146,6 +146,8 @@ export const api = {
   hideProduct: (id, reason) => request(`/admin/products/${id}/hide/`, { method: 'POST', body: JSON.stringify({ reason }) }),
   unhideProduct: (id) => request(`/admin/products/${id}/unhide/`, { method: 'POST' }),
   removeProductAdmin: (id, reason) => request(`/admin/products/${id}/remove/`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  approveProduct: (id) => request(`/admin/products/${id}/approve/`, { method: 'POST' }),
+  declineProduct: (id, reason) => request(`/admin/products/${id}/decline/`, { method: 'POST', body: JSON.stringify({ reason }) }),
   // admin categories
   createCategory: (name) => request('/admin/categories/', { method: 'POST', body: JSON.stringify({ category_name: name }) }),
   updateCategory: (id, name) => request(`/admin/categories/${id}/`, { method: 'PATCH', body: JSON.stringify({ category_name: name }) }),

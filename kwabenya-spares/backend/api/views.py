@@ -191,7 +191,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             image_url = result.get("secure_url", "")
             image_public_id = result.get("public_id", "")
 
-        serializer.save(image_url=image_url, image_public_id=image_public_id)
+        # New products start as Pending until an admin approves them.
+        serializer.save(
+            image_url=image_url, image_public_id=image_public_id,
+            approval_status="PENDING",
+        )
 
     def perform_destroy(self, instance):
         if instance.image_public_id:
@@ -232,7 +236,14 @@ class ProductViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
 
-        serializer.save(image_url=image_url, image_public_id=image_public_id)
+        # If a seller edits an already-approved product, it goes back to Pending.
+        new_status = serializer.instance.approval_status
+        if not is_admin(self.request.user) and serializer.instance.approval_status == "APPROVED":
+            new_status = "PENDING"
+        serializer.save(
+            image_url=image_url, image_public_id=image_public_id,
+            approval_status=new_status,
+        )
 
     # get_queryset: builds up the filtered/sorted queryset step by step
     # from whichever query-string parameters are actually present —
@@ -245,6 +256,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         if not (user.is_authenticated and (user.is_staff or getattr(user, "role", None) in ("SELLER", "ADMIN"))):
             qs = qs.filter(shop__owner__verification_status="APPROVED")
             qs = qs.filter(is_hidden=False, is_removed=False)
+            qs = qs.filter(approval_status="APPROVED")
         params = self.request.query_params  # shorthand for the rest of this method
 
         # --- text search across four fields at once ---
@@ -934,3 +946,48 @@ class AdminCategoryDeleteView(APIView):
             return Response({"detail": "Cannot delete a category that still has products. Reassign them first."}, status=400)
         cat.delete()
         return Response(status=204)
+
+# ---------------------------------------------------------------------------
+# Admin: product approval
+# ---------------------------------------------------------------------------
+class AdminProductApproveView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(pk=pk).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=404)
+        if product.approval_status == "APPROVED":
+            return Response({"detail": "ok"})
+        product.approval_status = "APPROVED"
+        product.decline_reason = ""
+        product.save(update_fields=["approval_status", "decline_reason"])
+        if product.shop and product.shop.owner_id:
+            Notification.objects.create(
+                user=product.shop.owner, title="Product approved",
+                message=f"Your listing '{product.part_name}' has been approved and is now live.",
+            )
+        return Response({"detail": "ok"})
+
+
+class AdminProductDeclineView(APIView):
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pk):
+        product = Product.objects.filter(pk=pk).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=404)
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "A reason is required."}, status=400)
+        if product.approval_status == "DECLINED" and product.decline_reason == reason:
+            return Response({"detail": "ok"})
+        product.approval_status = "DECLINED"
+        product.decline_reason = reason
+        product.save(update_fields=["approval_status", "decline_reason"])
+        if product.shop and product.shop.owner_id:
+            Notification.objects.create(
+                user=product.shop.owner, title="Product declined",
+                message=f"Your listing '{product.part_name}' was declined. Reason: {reason}",
+            )
+        return Response({"detail": "ok"})

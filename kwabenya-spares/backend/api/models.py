@@ -183,6 +183,16 @@ class Product(models.Model):
     is_hidden = models.BooleanField(default=False)
     moderation_reason = models.TextField(blank=True, default="")
     is_removed = models.BooleanField(default=False)
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        DECLINED = "DECLINED", "Declined"
+
+    approval_status = models.CharField(
+        max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING
+    )
+    decline_reason = models.TextField(blank=True, default="")
     # created_at: matches `created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`.
     created_at = models.DateTimeField(auto_now_add=True)
 

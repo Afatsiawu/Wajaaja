@@ -1952,6 +1952,11 @@ function SellerProductRow({ product }) {
       <div className="w-36 flex-1">
         <p className="text-stone-100 text-sm font-semibold truncate">{product.part_name}</p>
         <p className="text-stone-500 text-xs truncate">{product.compatible_models}</p>
+        {product.approval_status && product.approval_status !== 'APPROVED' && (
+          <p className={`text-xs font-mono uppercase mt-1 ${product.approval_status === 'PENDING' ? 'text-orange-400' : 'text-red-400'}`}>
+            {product.approval_status}{product.decline_reason ? `: ${product.decline_reason}` : ''}
+          </p>
+        )}
       </div>
       {/* Editable price field */}
       <div className="flex items-center gap-1">
@@ -2497,8 +2502,11 @@ function AdminDashboardView() {
         <a href={(import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001/api').replace(/\/api\/?$/, '/admin/')} target="_blank" rel="noreferrer" className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
           Manage users &amp; data (Django admin)
         </a>
+        <button onClick={() => navigate('adminProductApprovals')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
+          Product approvals
+        </button>
         <button onClick={() => navigate('adminSellers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
-          Seller approvals
+          Seller accounts
         </button>
         <button onClick={() => navigate('adminUsers')} className="border border-stone-700 hover:border-orange-600 text-stone-100 text-xs font-bold uppercase tracking-wide px-4 py-2.5 rounded-sm">
           Users
@@ -3161,16 +3169,76 @@ function AdminUsersView() {
           {users.map((u) => (
             <div key={u.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-stone-100 text-sm font-semibold">{u.username} <span className="text-stone-500 text-xs">({u.role})</span></p>
+                <p className="text-stone-100 text-sm font-semibold">{u.username} <span className="text-stone-500 text-xs">({u.role})</span> {u.role === 'SELLER' && <span className={`text-xs font-mono uppercase ml-2 ${u.verification_status === 'APPROVED' ? 'text-green-400' : u.verification_status === 'REJECTED' ? 'text-red-400' : 'text-orange-400'}`}>{u.verification_status}</span>}</p>
                 <p className="text-stone-500 text-xs">{u.email || '—'} · {u.phone_number}</p>
+                {u.role === 'SELLER' && u.rejection_reason && <p className="text-red-400 text-xs mt-1">{u.rejection_reason}</p>}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {u.role === 'SELLER' && u.verification_status === 'PENDING' && (
+                  <>
+                    <button onClick={async () => { try { await api.approveSeller(u.id); showToast('Approved'); load(); } catch (e) { showToast('Failed'); } }} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Approve</button>
+                    <button onClick={async () => { const r = prompt('Rejection reason (required):'); if (!r) return; try { await api.rejectSeller(u.id, r); showToast('Rejected'); load(); } catch (e) { showToast('Failed'); } }} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Deny</button>
+                  </>
+                )}
                 {u.is_active ? (
                   <button onClick={() => suspend(u.id)} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Suspend</button>
                 ) : (
                   <button onClick={() => activate(u.id)} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Activate</button>
                 )}
                 <button onClick={() => remove(u.id)} className="text-xs font-mono uppercase text-stone-400 hover:text-red-400">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AdminProductApprovalsView: approve/decline pending products.
+function AdminProductApprovalsView() {
+  const { showToast } = useApp();
+  const [status, setStatus] = useState('PENDING');
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAdminProducts({ status: status.toLowerCase() });
+      setProducts(data.results || []);
+    } catch (e) { showToast('Could not load products'); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [status]);
+  const approve = async (id) => { try { await api.approveProduct(id); showToast('Approved'); load(); } catch (e) { showToast('Failed'); } };
+  const decline = async (id) => { const reason = prompt('Decline reason (required):'); if (!reason) return; try { await api.declineProduct(id, reason); showToast('Declined'); load(); } catch (e) { showToast('Failed'); } };
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+      <SectionLabel eyebrow="Admin" title="Product approvals" />
+      <div className="flex gap-2 mb-4">
+        {['PENDING','APPROVED','DECLINED'].map((s) => (
+          <button key={s} onClick={() => setStatus(s)} className={`text-xs font-mono uppercase px-3 py-1.5 rounded-sm border ${status === s ? 'border-orange-600 text-orange-600' : 'border-stone-700 text-stone-400'}`}>{s}</button>
+        ))}
+      </div>
+      {loading ? <p className="text-stone-400 text-sm">Loading…</p> : products.length === 0 ? <p className="text-stone-500 text-sm">No products.</p> : (
+        <div className="space-y-2">
+          {products.map((p) => (
+            <div key={p.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center gap-3">
+              <img src={resolveImageUrl(p.image_url, p.category?.id)} alt={p.part_name} className="w-12 h-12 object-cover rounded-sm" />
+              <div className="min-w-0 flex-1">
+                <p className="text-stone-100 text-sm font-semibold">{p.part_name}</p>
+                <p className="text-stone-500 text-xs">{p.shop?.shop_name} · {p.category?.category_name} · {formatGHS(p.price)}</p>
+                <p className="text-stone-400 text-xs mt-1 line-clamp-2">{p.description}</p>
+                {p.decline_reason && <p className="text-red-400 text-xs mt-1">{p.decline_reason}</p>}
+              </div>
+              <div className="flex gap-2">
+                {p.approval_status === 'PENDING' && (
+                  <>
+                    <button onClick={() => approve(p.id)} className="bg-green-600 hover:bg-green-500 text-stone-950 font-bold text-xs uppercase px-3 py-1.5 rounded-sm">Approve</button>
+                    <button onClick={() => decline(p.id)} className="bg-red-600 hover:bg-red-500 text-stone-950 font-bold text-xs uppercase px-3 py-1.5 rounded-sm">Decline</button>
+                  </>
+                )}
+                <span className={`text-xs font-mono uppercase px-2 py-1 rounded-sm ${p.approval_status === 'APPROVED' ? 'bg-green-950 text-green-400' : p.approval_status === 'DECLINED' ? 'bg-red-950 text-red-400' : 'bg-stone-800 text-stone-300'}`}>{p.approval_status}</span>
               </div>
             </div>
           ))}
@@ -3217,10 +3285,16 @@ function AdminProductsView() {
             <div key={p.id} className="bg-stone-900 border border-stone-800 rounded-sm p-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-stone-100 text-sm font-semibold">{p.part_name}</p>
-                <p className="text-stone-500 text-xs">{p.shop?.shop_name} · {p.is_hidden ? 'Hidden' : p.is_removed ? 'Removed' : 'Active'}</p>
+                <p className="text-stone-500 text-xs">{p.shop?.shop_name} · {p.approval_status} · {p.is_hidden ? 'Hidden' : p.is_removed ? 'Removed' : 'Active'}</p>
                 {p.moderation_reason && <p className="text-red-400 text-xs mt-1">{p.moderation_reason}</p>}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {p.approval_status === 'PENDING' && (
+                  <>
+                    <button onClick={async () => { try { await api.approveProduct(p.id); showToast('Approved'); load(); } catch (e) { showToast('Failed'); } }} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Approve</button>
+                    <button onClick={async () => { const r = prompt('Decline reason (required):'); if (!r) return; try { await api.declineProduct(p.id, r); showToast('Declined'); load(); } catch (e) { showToast('Failed'); } }} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Decline</button>
+                  </>
+                )}
                 {p.is_hidden && !p.is_removed && <button onClick={() => unhide(p.id)} className="text-xs font-mono uppercase text-green-400 hover:text-green-300">Unhide</button>}
                 {!p.is_hidden && !p.is_removed && <button onClick={() => hide(p.id)} className="text-xs font-mono uppercase text-orange-400 hover:text-orange-300">Hide</button>}
                 {!p.is_removed && <button onClick={() => remove(p.id)} className="text-xs font-mono uppercase text-red-400 hover:text-red-300">Remove</button>}
@@ -3303,6 +3377,7 @@ function MainContent() {
     case 'mechanic': return <AccessGuard allowedRoles={['MECHANIC']}><MechanicDashboardView /></AccessGuard>;
     case 'admin': return <AccessGuard allowedRoles={['ADMIN']}><AdminDashboardView /></AccessGuard>;
     case 'adminSellers': return <AccessGuard allowedRoles={['ADMIN']}><AdminSellerApprovalsView /></AccessGuard>;
+    case 'adminProductApprovals': return <AccessGuard allowedRoles={['ADMIN']}><AdminProductApprovalsView /></AccessGuard>;
     case 'adminUsers': return <AccessGuard allowedRoles={['ADMIN']}><AdminUsersView /></AccessGuard>;
     case 'adminProducts': return <AccessGuard allowedRoles={['ADMIN']}><AdminProductsView /></AccessGuard>;
     case 'adminCategories': return <AccessGuard allowedRoles={['ADMIN']}><AdminCategoriesView /></AccessGuard>;
